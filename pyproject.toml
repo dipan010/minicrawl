@@ -1,0 +1,23 @@
+[project]
+name = "minicrawl"
+version = "0.1.0"
+description = "A web crawler built from scratch, one concept at a time."
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.27",
+    "selectolax>=0.3.21",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[project.scripts]
+minicrawl = "minicrawl.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

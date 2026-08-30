@@ -1,0 +1,538 @@
+{
+  "_readme": "Ground truth for the minicrawl test corpus. Regenerate with `uv run python -m testsite.manifest > testsite/manifest.json`.",
+  "hosts": [
+    "127.0.0.1:8081",
+    "127.0.0.1:8082",
+    "127.0.0.1:8083",
+    "127.0.0.1:8084"
+  ],
+  "primary_host": "127.0.0.1:8081",
+  "policy": {
+    "user_agent": "minicrawl",
+    "same_host_only": true,
+    "max_gen_depth": 0
+  },
+  "pages": {
+    "/": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Index",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/a",
+        "/b",
+        "/docs/",
+        "/variants",
+        "/dup/exact-1",
+        "/dup/near-1",
+        "/dup/canonical-source",
+        "/r/1",
+        "/loop/1",
+        "/slow",
+        "/js-only",
+        "/etag",
+        "/private/secret",
+        "/private/public-corner",
+        "/gen/1",
+        "/files/report.pdf",
+        "/hosts"
+      ],
+      "flags": []
+    },
+    "/a": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Page A",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/b",
+        "/c"
+      ],
+      "flags": []
+    },
+    "/b": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Page B",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/c",
+        "/"
+      ],
+      "flags": []
+    },
+    "/c": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Page C",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/a"
+      ],
+      "flags": []
+    },
+    "/docs/": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Docs index",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/docs/one",
+        "/docs/two",
+        "/docs/sub/three"
+      ],
+      "flags": []
+    },
+    "/docs/one": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Docs one",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/docs/two"
+      ],
+      "flags": []
+    },
+    "/docs/two": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Docs two",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/docs/sub/three"
+      ],
+      "flags": []
+    },
+    "/docs/sub/three": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Docs three",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/docs/"
+      ],
+      "flags": []
+    },
+    "/variants": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "URL variants",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/a"
+      ],
+      "flags": [
+        "normalization"
+      ]
+    },
+    "/dup/exact-1": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Duplicate",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "exact_dup"
+      ]
+    },
+    "/dup/exact-2": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Duplicate",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "exact_dup"
+      ]
+    },
+    "/dup/near-1": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Near duplicate one",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/dup/near-2",
+        "/dup/exact-1",
+        "/dup/exact-2"
+      ],
+      "flags": [
+        "near_dup"
+      ]
+    },
+    "/dup/near-2": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Near duplicate two",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "near_dup"
+      ]
+    },
+    "/dup/canonical-source": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Canonical points elsewhere",
+      "redirect_to": null,
+      "canonical": "/a",
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "canonical"
+      ]
+    },
+    "/r/1": {
+      "status": 302,
+      "content_type": "text/html",
+      "title": null,
+      "redirect_to": "/r/2",
+      "canonical": null,
+      "declared_links": [],
+      "flags": [
+        "redirect_chain"
+      ]
+    },
+    "/r/2": {
+      "status": 301,
+      "content_type": "text/html",
+      "title": null,
+      "redirect_to": "/r/3",
+      "canonical": null,
+      "declared_links": [],
+      "flags": [
+        "redirect_chain"
+      ]
+    },
+    "/r/3": {
+      "status": 302,
+      "content_type": "text/html",
+      "title": null,
+      "redirect_to": "/a",
+      "canonical": null,
+      "declared_links": [],
+      "flags": [
+        "redirect_chain"
+      ]
+    },
+    "/loop/1": {
+      "status": 302,
+      "content_type": "text/html",
+      "title": null,
+      "redirect_to": "/loop/2",
+      "canonical": null,
+      "declared_links": [],
+      "flags": [
+        "trap",
+        "redirect_loop"
+      ]
+    },
+    "/loop/2": {
+      "status": 302,
+      "content_type": "text/html",
+      "title": null,
+      "redirect_to": "/loop/1",
+      "canonical": null,
+      "declared_links": [],
+      "flags": [
+        "trap",
+        "redirect_loop"
+      ]
+    },
+    "/slow": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Slow page",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "slow"
+      ]
+    },
+    "/hang": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Hang",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [],
+      "flags": [
+        "trap",
+        "hang"
+      ]
+    },
+    "/js-only": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Client rendered",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [],
+      "flags": [
+        "js_only"
+      ]
+    },
+    "/js-only/child": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "JS child",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "js_only_child"
+      ]
+    },
+    "/etag": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Cacheable",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "conditional_get"
+      ]
+    },
+    "/private/secret": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Secret",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "robots_disallowed"
+      ]
+    },
+    "/private/public-corner": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Allowed exception",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "robots_allow_exception"
+      ]
+    },
+    "/files/report.pdf": {
+      "status": 200,
+      "content_type": "application/pdf",
+      "title": null,
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [],
+      "flags": [
+        "non_html"
+      ]
+    },
+    "/files/logo.png": {
+      "status": 200,
+      "content_type": "image/png",
+      "title": null,
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [],
+      "flags": [
+        "non_html"
+      ]
+    },
+    "/hosts": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Other hosts",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "cross_host"
+      ]
+    }
+  },
+  "robots": {
+    "127.0.0.1:8081": {
+      "status": 200,
+      "disallowed": [
+        "/private/secret",
+        "/files/report.pdf",
+        "/files/logo.png"
+      ],
+      "crawl_delay": 0.2,
+      "effect": "rules apply"
+    },
+    "127.0.0.1:8082": {
+      "status": 404,
+      "disallowed": [],
+      "crawl_delay": null,
+      "effect": "allow all (404)"
+    },
+    "127.0.0.1:8083": {
+      "status": 500,
+      "disallowed": [
+        "*"
+      ],
+      "crawl_delay": null,
+      "effect": "disallow all (5xx, RFC 9309)"
+    },
+    "127.0.0.1:8084": {
+      "status": 200,
+      "disallowed": [
+        "/gen/"
+      ],
+      "crawl_delay": null,
+      "effect": "rules apply"
+    }
+  },
+  "normalization_groups": [
+    {
+      "name": "bare",
+      "canonical": "http://127.0.0.1:8081/a",
+      "hrefs": [
+        "/a",
+        "/a/",
+        "/a?",
+        "/a#section",
+        "/a#other",
+        "http://127.0.0.1:8081/a",
+        "http://127.0.0.1:8081/./a",
+        "http://127.0.0.1:8081/x/../a"
+      ]
+    },
+    {
+      "name": "queried",
+      "canonical": "http://127.0.0.1:8081/a?a=1&b=2",
+      "hrefs": [
+        "/a?b=2&a=1",
+        "/a?a=1&b=2",
+        "/a?a=1&b=2&",
+        "/a?a=1&b=2&utm_source=news",
+        "/a?sid=99a1&a=1&b=2"
+      ]
+    }
+  ],
+  "malformed_hrefs": [
+    "http://127.0.0.1:8081:/a"
+  ],
+  "redirect_chains": [
+    {
+      "start": "/r/1",
+      "hops": [
+        "/r/2",
+        "/r/3"
+      ],
+      "final": "/a"
+    }
+  ],
+  "redirect_loops": [
+    [
+      "/loop/1",
+      "/loop/2"
+    ]
+  ],
+  "dup_pairs": {
+    "exact": [
+      [
+        "/dup/exact-1",
+        "/dup/exact-2"
+      ]
+    ],
+    "near": [
+      [
+        "/dup/near-1",
+        "/dup/near-2"
+      ]
+    ],
+    "canonical_alias": [
+      [
+        "/dup/canonical-source",
+        "/a"
+      ]
+    ]
+  },
+  "js_only": {
+    "shell": "/js-only",
+    "reachable_only_after_render": [
+      "/js-only/child"
+    ]
+  },
+  "conditional_get": [
+    "/etag"
+  ],
+  "non_html": [
+    "/files/report.pdf",
+    "/files/logo.png"
+  ],
+  "sitemaps": {
+    "index": "/sitemap.xml",
+    "urls": [
+      "/",
+      "/a",
+      "/b",
+      "/c",
+      "/docs/",
+      "/docs/one",
+      "/docs/sub/three",
+      "/docs/two",
+      "/etag"
+    ]
+  },
+  "traps": {
+    "/loop/1": "redirect loop \u2014 fixed in stage 5 (normalise + seen-set on redirects)",
+    "/gen/1": "unbounded generator \u2014 fixed in stage 5 (byte cap + path-depth cap)",
+    "/hang": "no response \u2014 fixed in stage 4 (per-request timeout)"
+  },
+  "expected_pages": [
+    "/",
+    "/a",
+    "/b",
+    "/c",
+    "/docs/",
+    "/docs/one",
+    "/docs/sub/three",
+    "/docs/two",
+    "/dup/canonical-source",
+    "/dup/exact-1",
+    "/dup/exact-2",
+    "/dup/near-1",
+    "/dup/near-2",
+    "/etag",
+    "/hosts",
+    "/js-only",
+    "/private/public-corner",
+    "/slow",
+    "/variants"
+  ]
+}
