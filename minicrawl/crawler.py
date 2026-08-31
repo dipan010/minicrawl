@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 from . import extract, fetch, robots as robots_mod
+from .dedup import DuplicateIndex, Verdict
 from .frontier import HostedFrontier, Request, SqliteFrontier
 from .normalize import normalize
 from .politeness import Politeness
@@ -46,6 +47,9 @@ class CrawlConfig:
     normalize_urls: bool = True
     traps: TrapGuard | None = field(default_factory=TrapGuard)
     frontier_path: str | None = None    # None = in memory; a path = resumable
+    # -- stage 6 --
+    dedup: DuplicateIndex | None = field(default_factory=DuplicateIndex)
+    follow_duplicate_links: bool = False
 
 
 @dataclass(slots=True)
@@ -58,6 +62,9 @@ class Page:
     n_links: int
     elapsed: float
     error: str | None = None
+    verdict: str = "new"
+    duplicate_of: str | None = None
+    words: int = 0
 
 
 @dataclass(slots=True)
@@ -75,6 +82,7 @@ class CrawlResult:
     peak_in_flight_per_host: dict[str, int] = field(default_factory=dict)
     hosts_seen: int = 0
     rejected_by_traps: dict[str, int] = field(default_factory=dict)
+    dedup_counts: dict[str, int] = field(default_factory=dict)
     requeued_on_resume: int = 0
     already_done_on_start: int = 0
 
@@ -167,8 +175,12 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
         nonlocal budget, in_flight
         while (request := await frontier.acquire()) is not None:
             host = host_of(request.url)
+            handled = True
             try:
                 if budget <= 0:
+                    # Never processed. Releasing it as finished would mark it
+                    # done in a durable frontier and every resume would skip it.
+                    handled = False
                     result.stopped_because = f"max_pages ({config.max_pages}) reached"
                     await frontier.close()
                     return
@@ -209,7 +221,28 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                 if got.is_html:
                     found = extract.parse(got.body, got.final_url)
                     page.title, page.n_links = found.title, len(found.links)
-                    if request.depth < config.max_depth:
+                    page.words = len(found.main_text.split())
+
+                    duplicate = False
+                    if config.dedup is not None:
+                        canonical_url = (canonical(found.canonical)
+                                         if found.canonical else None)
+                        decision = config.dedup.add(got.final_url, found.main_text,
+                                                    canonical=canonical_url)
+                        page.verdict = decision.verdict.value
+                        page.duplicate_of = decision.of
+                        # A duplicate's links are duplicates too. Not following
+                        # them is what actually kills a generated page family:
+                        # the chain dies at the first repeat instead of at a
+                        # budget. It also risks coverage, since a page reachable
+                        # ONLY through a duplicate is now unreachable.
+                        duplicate = (
+                            not config.follow_duplicate_links
+                            and decision.verdict in (Verdict.EXACT_DUPLICATE,
+                                                     Verdict.NEAR_DUPLICATE,
+                                                     Verdict.ALREADY_SEEN))
+
+                    if not duplicate and request.depth < config.max_depth:
                         for raw in found.links:
                             link = canonical(raw)
                             if link is None:
@@ -229,7 +262,7 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                 result.pages.append(page)
                 _emit(config, page)
             finally:
-                await frontier.release(request.url)
+                await frontier.release(request.url, done=handled)
 
     try:
         await asyncio.gather(*(worker() for _ in range(max(1, config.workers))))
@@ -240,6 +273,8 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
         result.sitemaps = robots.sitemaps
     if config.traps is not None:
         result.rejected_by_traps = dict(config.traps.rejected)
+    if config.dedup is not None:
+        result.dedup_counts = dict(config.dedup.counts)
     result.worker_seconds_waiting = (politeness.waited_total
                                      + frontier.worker_seconds_waiting)
     result.hosts_seen = frontier.host_count

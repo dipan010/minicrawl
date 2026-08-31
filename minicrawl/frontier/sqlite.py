@@ -99,6 +99,10 @@ class SqliteFrontier(SchedulingFrontier):
             " VALUES (?,?,0,NULL,'done',?)", (url, host_of(url), time.time()))
         return cursor.rowcount == 1
 
+    def _requeue(self, request: Request) -> None:
+        self._db.execute("UPDATE frontier SET state='queued' WHERE url=?",
+                         (request.url,))
+
     def _complete(self, url: str) -> None:
         self._db.execute("UPDATE frontier SET state='done' WHERE url=?", (url,))
 

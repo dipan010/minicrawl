@@ -38,6 +38,9 @@ class HostedFrontier(SchedulingFrontier):
     def _take(self, host: str) -> Request | None:
         return self._queues[host].pop()
 
+    def _requeue(self, request: Request) -> None:
+        self._queues[host_of(request.url)].requeue(request)
+
     def _hosts_with_work(self) -> Iterable[str]:
         return [h for h, q in self._queues.items() if len(q)]
 

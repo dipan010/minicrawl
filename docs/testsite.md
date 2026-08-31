@@ -19,8 +19,10 @@ at all.
 | `Allow: /private/public-corner` under `Disallow: /private/` | longest-match wins, not first-match | 3 |
 | `Crawl-delay: 0.2` | politeness is a per-host clock | 3, 4 |
 | 14 spellings of `/a` on `/variants` | trailing slash, default port, dot segments, param order, `utm_*`, session ids | 5 |
-| `/dup/exact-{1,2}`, `/dup/near-{1,2}` | content-hash dedup vs. near-dup detection | 6 |
-| `/dup/canonical-source` with `rel=canonical` → `/a` | the page tells you it is an alias | 5 |
+| `/dup/exact-{1,2}` | identical text — caught by a content hash | 6 |
+| `/dup/near-{1,2}` | 450 words, **2 edited** — caught by simhash at distance 4 | 6 |
+| `/gen/*` filler is varied prose | one repeated phrase gives 4 distinct shingles and breaks simhash outright | 6 |
+| `/dup/canonical-source` with `rel=canonical` → `/a` | the page tells you it is an alias | 6 |
 | `/js-only` whose only link appears after JS runs | you cannot detect this from the HTTP response alone | 7 |
 | `/etag` with real 304s | conditional GET is how recrawling stays cheap | 8 |
 | `sitemap.xml` as an *index* of two sitemaps | seeds do not have to come from crawling | 8 |

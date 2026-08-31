@@ -155,7 +155,7 @@ class Handler(BaseHTTPRequestHandler):
             n = int(path[len(spec.GEN_PREFIX):].strip("/"))
         except ValueError:
             return self.send(404, b"<h1>404</h1>", "text/html; charset=utf-8")
-        paragraph = "<p>%s</p>" % ("generated filler " * 40)
+        paragraph = f"<p>{spec.GEN_FILLER_BLOCK}</p>"
         filler = paragraph * (spec.GEN_BODY_BYTES // len(paragraph) + 1)
         body = (f"<!doctype html><html><head><title>Generated {n}</title></head><body>"
                 f"<h1>Generated {n}</h1>{filler}"

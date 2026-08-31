@@ -53,23 +53,79 @@ ROBOTS = {
     },
 }
 
+# Used ONLY by the exact-duplicate pair. /a has its own text: when /a shared
+# this paragraph, /a was a genuine near-duplicate of /dup/exact-1 (distance 4),
+# and no threshold should be asked to pretend otherwise.
 TEXT_A = (
     "Politeness is the part of crawling that separates a tool from a nuisance. "
     "A crawler that ignores robots.txt and hammers a host at full concurrency is "
     "indistinguishable from a denial of service, regardless of intent."
 )
-TEXT_NEAR = (
-    "Politeness is the part of crawling that separates a tool from a nuisance. "
-    "A crawler that ignores robots.txt and floods a host at full concurrency is "
-    "hard to distinguish from a denial of service, whatever the intent."
+TEXT_PAGE_A = (
+    "Redirects mean the URL you asked for and the URL you received are two "
+    "different things. Every relative link on the response resolves against "
+    "where you landed, not against what you requested, and a crawler that "
+    "conflates them will quietly invent URLs that never existed."
 )
+# The near-duplicate pair needs its OWN base text. If it shared TEXT_A with the
+# exact pair, then /dup/near-1 would be roughly as similar to /dup/exact-1 as it
+# is to /dup/near-2, and no threshold could tell the declared pairs apart -- the
+# corpus would be incapable of testing near-duplicate detection at all.
+TEXT_NEAR_LONG = (
+    "The frontier is the queue of URLs a crawler has discovered but not yet "
+    "visited, and its ordering discipline is the entire crawl strategy. A "
+    "first-in-first-out queue produces a breadth-first sweep that covers a site "
+    "evenly and shallowly. A stack produces a depth-first descent that tunnels "
+    "into one corner and is almost never what anybody wanted. Replace the queue "
+    "with a heap and the same loop becomes a priority crawler that spends its "
+    "budget where the value is highest. None of this changes the fetching code, "
+    "the parsing code, or the storage layer. It changes one data structure, and "
+    "the character of the whole crawl changes with it. "
+    "That is worth noticing, because it means the hardest decisions in a crawler "
+    "are rarely about protocols or parsing. They are about what to look at next, "
+    "and that decision lives in a single collection whose interface fits on one "
+    "screen. A crawler that keeps its frontier behind an interface can change "
+    "strategy without changing anything else. A crawler that does not will have "
+    "its strategy welded into the main loop forever, and every later question "
+    "about priority, politeness or persistence becomes a rewrite instead of a "
+    "substitution. "
+    "The same argument applies to the seen set. What you put into it defines "
+    "what the crawler believes a page is. Raw URL strings mean that two "
+    "spellings of one address count as two pages, and the crawler cheerfully "
+    "pays twice for the same bytes. Normalised URLs mean it pays once. Content "
+    "hashes mean it notices that two different addresses served the same "
+    "document. Similarity fingerprints mean it notices that they served almost "
+    "the same document, which is the case that actually dominates a real crawl. "
+    "Each of those is a different answer to the same question, and each costs "
+    "more than the last. "
+    "Politeness is the constraint that makes all of this harder than it looks. "
+    "A crawler with no rate limit is a denial of service with good intentions. "
+    "A crawler with a global rate limit is polite to nobody in particular and "
+    "slow for everyone. The rate limit has to be per origin, which means the "
+    "queue has to know about origins, which means the innocuous-looking "
+    "collection at the centre of the design is suddenly load-bearing for "
+    "correctness, throughput and ethics at the same time. "
+    "None of these decisions are visible from the outside. A crawl either "
+    "returns the pages or it does not, and the difference between a good "
+    "implementation and a bad one shows up as a support ticket from somebody "
+    "whose server fell over, or as a bill for storage of documents that were "
+    "all the same document."
+)
+
+# The near-duplicate is the SAME page with two words edited. That is what a
+# near-duplicate looks like in the wild -- a corrected sentence, a swapped
+# synonym -- and it is the case the 64-bit/3-bit simhash threshold assumes.
+TEXT_NEAR_1 = TEXT_NEAR_LONG
+TEXT_NEAR_2 = TEXT_NEAR_LONG.replace("not yet visited", "not yet fetched") \
+                            .replace("what anybody wanted", "what anyone wanted")
 
 PAGES: dict[str, dict] = {
     "/": {
         "title": "Index",
         "body": "<p>Entry point for the minicrawl test corpus.</p>",
         "links": [
-            "/a", "/b", "/docs/", "/variants", "/dup/exact-1", "/dup/near-1",
+            "/a", "/b", "/docs/", "/variants", "/dup/exact-1", "/dup/exact-2",
+            "/dup/near-1",
             "/dup/canonical-source", "/r/1", "/loop/1", "/slow", "/js-only",
             "/etag", "/private/secret", "/private/public-corner", "/gen/1",
             "/files/report.pdf", "/hosts",
@@ -77,7 +133,7 @@ PAGES: dict[str, dict] = {
     },
     "/a": {
         "title": "Page A",
-        "body": f"<p>{TEXT_A}</p>",
+        "body": f"<p>{TEXT_PAGE_A}</p>",
         "links": ["/b", "/c"],
         # /b written protocol-relative, /c written as a bare relative path
         "raw": {"/b": "//127.0.0.1:8081/b", "/c": "c"},
@@ -137,10 +193,10 @@ PAGES: dict[str, dict] = {
                      "flags": ["exact_dup"]},
     "/dup/exact-2": {"title": "Duplicate", "body": f"<p>{TEXT_A}</p>", "links": ["/"],
                      "flags": ["exact_dup"]},
-    "/dup/near-1": {"title": "Near duplicate one", "body": f"<p>{TEXT_A}</p>",
+    "/dup/near-1": {"title": "Near duplicate one", "body": f"<p>{TEXT_NEAR_1}</p>",
                     "links": ["/dup/near-2", "/dup/exact-1", "/dup/exact-2"],
                     "flags": ["near_dup"]},
-    "/dup/near-2": {"title": "Near duplicate two", "body": f"<p>{TEXT_NEAR}</p>",
+    "/dup/near-2": {"title": "Near duplicate two", "body": f"<p>{TEXT_NEAR_2}</p>",
                     "links": ["/"], "flags": ["near_dup"]},
     "/dup/canonical-source": {
         "title": "Canonical points elsewhere",
@@ -203,6 +259,24 @@ PAGES: dict[str, dict] = {
 # /gen/<n> is generated on the fly: an unbounded chain with a fat body.
 GEN_PREFIX = "/gen/"
 GEN_BODY_BYTES = 64 * 1024   # fat enough that an uncapped crawl notices
+
+# The filler must be VARIED, not one phrase repeated. A block with only a
+# handful of distinct word-shingles breaks simhash outright: the two dominant
+# shingles end up with near-equal weights, cancel in every bit column, and let
+# a four-shingle difference flip fourteen bits. Real generated pages carry real
+# prose around their varying field, so the corpus has to as well or it tests a
+# degenerate case that does not occur.
+GEN_FILLER_BLOCK = (
+    "A crawler is a program that discovers documents by following the links "
+    "between them. The frontier holds what has been found and not yet fetched. "
+    "Politeness governs how often any single origin may be contacted, and it is "
+    "the constraint that separates a useful tool from an outage. Duplicate "
+    "detection decides whether two responses are worth storing separately. "
+    "Freshness decides when something already stored deserves another look. "
+    "Extraction turns markup into text a person or a model can read. Every one "
+    "of these is a policy question wearing an engineering costume, and the "
+    "answers differ for an archive, a search index and a training corpus."
+)
 
 SITEMAPS = {
     "/sitemap.xml": ["/sitemap-1.xml", "/sitemap-2.xml"],   # a sitemap *index*

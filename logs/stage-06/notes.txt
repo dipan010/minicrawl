@@ -1,0 +1,214 @@
+STAGE 6 - CONTENT EXTRACTION AND DUPLICATE DETECTION
+tag: stage-06
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Decide when two responses are the same document, and act on the answer.
+Three separate questions: identical, nearly identical, declared identical.
+
+Secondary goal, and the real test of the idea: kill the generator trap on
+CONTENT rather than on URL shape. Stage 5 bounded it with a budget. A budget
+is a guess. Recognising that every /gen page says the same thing is not.
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. Added main_text() to extract.py - body text with the furniture removed.
+ 2. Wrote dedup.py: content_hash, shingles, simhash, hamming, banded index.
+ 3. MEASURED the corpus before choosing a threshold. This immediately failed
+    and drove steps 4-6.
+ 4. Found the generator filler was degenerate and broke simhash. Rewrote the
+    filler as varied prose; added MIN_DISTINCT_SHINGLES as a guard.
+ 5. Found /a shared its paragraph with the exact-duplicate pair, making it a
+    genuine near-duplicate of them. Gave /a its own text.
+ 6. Found the near pair (6 words edited in 188) sat 11 bits apart - above any
+    usable threshold. Rewrote it as 2 words edited in 450, which measures 4.
+ 7. Re-measured: exact 0, near 4, generated 0, closest non-pair 24. Set
+    max_distance=6, which forced BANDS from 4 to 8.
+ 8. Wired dedup into the crawl loop, suppressing link-following on duplicates.
+ 9. Added ALREADY_SEEN after /a came out as an "exact duplicate of itself".
+10. Fixed two bugs the stage exposed (see WHAT BROKE), one of them in stage 5.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+BOILERPLATE REMOVAL
+  Navigation, headers and footers are identical across a site. Left in the
+  text, they make every page look similar to every other - which is exactly
+  the signal duplicate detection is trying to read. This is not a tidiness
+  feature; without it, near-duplicate detection measures the template.
+
+  Ordering constraint: main_text() mutates the parse tree, so it must run
+  AFTER link extraction. The links live in the <nav> it deletes.
+
+THREE QUESTIONS, THREE TOOLS
+  identical            -> cryptographic hash (SHA-256 of normalised text)
+  nearly identical     -> similarity hash (simhash) + Hamming distance
+  declared identical   -> rel=canonical, believed because the site said it
+
+  The middle one is the only hard one. Equality-based structures cannot
+  answer it: a hash table finds exact matches, and "differs by six words out
+  of four hundred" is not a match.
+
+SHINGLING
+  Overlapping k-word windows (k=4). Word ORDER survives, which a bag of words
+  destroys - "dog bites man" and "man bites dog" have identical word bags.
+
+SIMHASH (Charikar 2002) - LOCALITY-SENSITIVE HASHING
+  A hash where similar inputs produce similar outputs. This is the exact
+  OPPOSITE of what a cryptographic hash promises, and it is the whole point.
+    1. shingle the text
+    2. hash each shingle to 64 bits
+    3. each bit column votes +1 if the shingle's bit is set, -1 if clear
+    4. keep the sign of each column
+  Changing a few shingles moves a few votes, which flips at most a few bits.
+  Similarity becomes Hamming distance: a number, comparable, thresholdable.
+
+BANDING - AND THE CONSTRAINT THAT COMES WITH IT
+  Comparing a new fingerprint against every stored one is O(n) per page, which
+  is the cost simhash was supposed to avoid. Split the 64 bits into B bands,
+  index each band separately, and only compare against fingerprints sharing at
+  least one exact band.
+
+  Soundness rests on the PIGEONHOLE PRINCIPLE: two fingerprints differing in
+  fewer than B bits cannot differ in all B bands, so they must agree exactly
+  on at least one. Therefore:
+
+      max_distance < BANDS      <-- a correctness constraint, not a tuning knob
+
+  Widen the threshold without widening the bands and the index does not get
+  slower, it gets WRONG: it silently stops finding the pairs it exists for.
+  A test asserts the inequality so nobody can break it by tuning one number.
+
+THRESHOLDS ARE MEASURED, NOT LOOKED UP
+  The folklore constant for 64-bit simhash is 3. It is calibrated for
+  documents with thousands of shingles and does not transfer. The right
+  threshold is a property of YOUR document population.
+
+  The relationship is proportional: the same two-word edit is a large fraction
+  of a short document and a negligible fraction of a long one. Measured here:
+      6 words edited in 188  -> 11 bits apart   (unusable)
+      2 words edited in 450  ->  4 bits apart   (workable)
+
+FEATURE DIVERSITY, NOT JUST LENGTH
+  A document can be enormous and still unfit for a fingerprint. If it carries
+  only a handful of distinct shingles with near-equal weights, they cancel in
+  every bit column and noise decides the sign. Length is not a sufficient
+  test; distinct-feature count is a second, independent one.
+
+SUPPRESSING A DUPLICATE'S LINKS
+  A duplicate's links are duplicates too. Not following them is what actually
+  kills a generated family - the chain dies at the first repeat rather than at
+  a budget. The cost is real and accepted: a page reachable ONLY through a
+  duplicate becomes unreachable.
+
+REFETCH IS NOT DUPLICATION
+  /a, /a/ and the end of the /r/1 redirect chain are one page reached three
+  ways. Calling that "an exact duplicate of itself" is nonsense that would
+  corrupt every count on the report. It needs its own verdict.
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  boilerplate removal        -> extract.main_text(), extract.BOILERPLATE
+  ordering constraint        -> extract.parse() calls main_text() LAST
+  exact identity             -> dedup.content_hash()
+  order-preserving features  -> dedup.shingles()
+  locality-sensitive hash    -> dedup.simhash()
+  similarity as a number     -> dedup.hamming()
+  banded index               -> dedup.DuplicateIndex._bands / _band_keys /
+                                _candidates / _store
+  pigeonhole constraint      -> dedup.BANDS comment; the assertion in
+                                test_banding_stays_sound_for_the_configured_threshold
+  measured threshold         -> dedup.DuplicateIndex.max_distance (and the
+                                comment recording what was measured)
+  short-document guard       -> dedup.MIN_WORDS_FOR_NEAR_DUP
+  degenerate-document guard  -> dedup.MIN_DISTINCT_SHINGLES
+  declared aliasing          -> dedup.Verdict.CANONICAL_ALIAS, add(canonical=)
+  refetch vs duplicate       -> dedup.Verdict.ALREADY_SEEN
+  link suppression           -> crawler.worker(), the `duplicate` flag
+  the control case           -> CrawlConfig.follow_duplicate_links
+  corpus margin as a test    -> test_declared_pairs_are_separable_by_a_threshold
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+A. SIMHASH GAVE 14 BITS FOR A ONE-WORD DIFFERENCE.
+   Two /gen pages differing by one word in 7,679 measured 14 bits apart.
+   Cause: the filler was one phrase repeated, so the page had FOUR distinct
+   shingles, the top two occurring 3,839 and 3,838 times. Near-equal weights
+   cancel in every bit column, leaving the four differing shingles to decide
+   the sign. The corpus was testing a degenerate case that does not occur in
+   the wild - real generated pages carry real prose around a varying field.
+   Fixed the filler; kept the finding as MIN_DISTINCT_SHINGLES.
+   LESSON: an algorithm's failure mode is worth more than its success case.
+   Do not delete the evidence, turn it into a guard.
+
+B. /a WAS A GENUINE NEAR-DUPLICATE OF /dup/exact-1 (distance 4).
+   They shared TEXT_A and differed only in the heading. No threshold should be
+   asked to deny that. /a got its own text.
+   LESSON: when the corpus and the algorithm disagree, check the corpus first.
+
+C. THE NEAR PAIR WAS TOO FAR APART (11 bits, 6 words edited in 188).
+   Above any threshold that would still exclude unrelated pages at 24.
+   Rewritten as 2 words edited in 450 -> 4 bits.
+   LESSON: a near-duplicate is a small edit to a large document. A 3% rewrite
+   is not a near-duplicate, it is a different page.
+
+D. /dup/exact-2 WAS REACHABLE ONLY THROUGH /dup/near-1.
+   Since duplicates now have their links suppressed, one ordering would have
+   made exact-2 permanently unreachable. Linked it from the index too.
+   LESSON: link suppression creates coverage risk. Make it visible.
+
+E. follow_duplicate_links WAS DECLARED AND NEVER READ.
+   The config field existed, the crawler ignored it. Caught within a minute by
+   the control test that used it.
+   LESSON: a flag with no test is a comment.
+
+F. HITTING max_pages MARKED A URL DONE WITHOUT FETCHING IT.  [stage-5 bug]
+   When a worker hits the budget it returns without processing the request it
+   is holding - but the `finally` block released that request as FINISHED,
+   which the SQLite frontier records as done. Every later resume then skipped
+   it. A page silently lost from every capped-then-resumed crawl, invisible
+   unless you compare the UNION of two runs against ground truth.
+   Fixed: release(url, done=False) requeues instead of completing.
+   LESSON: a `finally` block that records completion will happily record work
+   that never happened. Also: the resume test found this only because it
+   diffed against a declared manifest rather than against itself.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  uv run pytest tests/test_stage06_content_dedup.py -q     -> 20 passed
+  uv run minicrawl http://127.0.0.1:8081/ --verify
+
+  expected 19 pages, crawled 22 on 127.0.0.1:8081
+  bounded     3 trap pages under /gen/ - capped, not excluded
+  documents   17 unique, 2 exact dup, 3 near dup, 1 canonical alias, 2 refetched
+  exact match against the manifest
+
+Measured distances (the margin the threshold lives in):
+  /dup/exact-1 vs /dup/exact-2      0     declared exact pair
+  /dup/near-1  vs /dup/near-2       4     declared near pair
+  /gen/1       vs /gen/2            0     the trap
+  closest non-pair                 24
+  max_distance = 6, BANDS = 8       (6 < 8, so banding stays sound)
+
+Generator trap across stages:
+  stage 2   unbounded, stopped only by max_pages
+  stage 5   5 pages, held by the URL shape budget
+  stage 6   3 pages, held by content - the shape budget never fires
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+WORKS   boilerplate removal, exact / near / declared duplicate detection
+        the generator trap dies on content, not on a guess
+        capped-then-resumed crawls no longer lose a page
+
+KNOWN   /js-only/child is still invisible - its link only exists after
+WRONG   JavaScript runs                                    -> stage 7
+        /etag is refetched in full every time; sitemaps are collected but
+        never used as seeds; nothing is ever recrawled     -> stage 8
+        one process owns the frontier                      -> stage 9

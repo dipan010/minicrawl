@@ -14,7 +14,7 @@ async def client():
 async def test_fetches_html(client, base):
     got = await fetch.fetch(client, f"{base}/a")
     assert got.ok and got.is_html
-    assert b"Politeness is the part of crawling" in got.body
+    assert b"Redirects mean the URL you asked for" in got.body
 
 
 async def test_follows_a_redirect_chain(client, base):

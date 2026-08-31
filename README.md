@@ -30,7 +30,7 @@ is verified against the ground-truth manifest.
 | 3 ✅ | `robots.py`, `politeness.py` | robots.txt (hand-rolled), crawl-delay, per-host rate limits |
 | 4 ✅ | `frontier/hosted.py`, worker pool | Concurrency that does not become a DoS |
 | 5 ✅ | `normalize.py`, `traps.py`, `frontier/sqlite.py` | Canonicalisation, dedup, resumable crawls, trap defence |
-| 6 | `extract.py` main-text, `dedup.py` | Boilerplate removal, exact + near-dup (simhash) |
+| 6 ✅ | `dedup.py`, `main_text()` | Boilerplate removal, exact + near-dup (simhash), canonical |
 | 7 | `render.py` | Escalating to Playwright *only* for pages that need it |
 | 8 | `freshness.py`, sitemaps | Conditional GET, recrawl scheduling, priority frontier |
 | 9 | `frontier/redis.py` | Distributed coordination, host-sharded workers |

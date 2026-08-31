@@ -34,6 +34,7 @@ class SchedulingFrontier(ABC):
     def __init__(self, politeness: Politeness):
         self._politeness = politeness
         self._in_flight: set[str] = set()
+        self._issued: dict[str, Request] = {}
         self._active = 0
         self._closed = False
         self._cond = asyncio.Condition()
@@ -61,6 +62,10 @@ class SchedulingFrontier(ABC):
 
     def _complete(self, url: str) -> None:
         """Durable frontiers record this so a resumed crawl skips it."""
+
+    @abstractmethod
+    def _requeue(self, request: Request) -> None:
+        """Put a handed-out request back, bypassing the seen-set."""
 
     @abstractmethod
     def _mark_seen(self, url: str) -> bool:
@@ -143,6 +148,7 @@ class SchedulingFrontier(ABC):
             if request is None:
                 continue
             self._in_flight.add(host)
+            self._issued[request.url] = request
             # The clock starts when the request starts, not when it ends —
             # same semantics as stage 3's sequential Politeness.wait().
             self._politeness.mark_used(host)
@@ -151,12 +157,24 @@ class SchedulingFrontier(ABC):
             return request, None
         return None, soonest
 
-    async def release(self, url: str) -> None:
-        """Give the host back and record the request as finished."""
+    async def release(self, url: str, *, done: bool = True) -> None:
+        """Give the host back.
+
+        `done=False` means the worker never actually processed this request --
+        it hit a budget and stopped. Recording that as finished is silent data
+        loss: with a durable frontier, the URL is marked done without ever
+        having been fetched, and every later resume skips it forever. Put it
+        back instead.
+        """
         async with self._cond:
+            request = self._issued.pop(url, None)
             self._in_flight.discard(host_of(url))
             self._active -= 1
-            self._complete(url)
+            if done or request is None:
+                self._complete(url)
+            else:
+                self._requeue(request)
+                self._pending += 1
             self._cond.notify_all()
 
     async def close(self) -> None:

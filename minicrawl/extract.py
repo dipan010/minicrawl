@@ -1,8 +1,14 @@
-"""Stage 1 — turning a byte string into links.
+"""Turning a byte string into links (stage 1) and into readable text (stage 6).
 
 Three things trip up naive link extraction, and the test corpus has all three:
 `<base href>` changes what relative URLs mean, protocol-relative `//host/path`
 inherits the scheme, and fragments make two identical URLs look different.
+
+Stage 6 adds `main_text`: the page with its furniture removed. Navigation,
+headers, footers and scripts are the same on every page of a site, so leaving
+them in makes every page look similar to every other — which is precisely the
+signal duplicate detection is trying to read. Boilerplate removal is not a
+tidiness feature; without it, near-duplicate detection measures the template.
 """
 from __future__ import annotations
 
@@ -14,12 +20,19 @@ from selectolax.lexbor import LexborHTMLParser
 SKIP_SCHEMES = ("mailto:", "javascript:", "tel:", "data:", "#")
 
 
+# Elements that are page furniture, not page content. Removing them before
+# reading the text is what stops every page on a site scoring as similar.
+BOILERPLATE = ("script", "style", "noscript", "template", "svg",
+               "nav", "header", "footer", "aside", "form")
+
+
 @dataclass(slots=True)
 class Extracted:
     title: str
     links: list[str]
     canonical: str | None
-    text: str
+    text: str           # everything in <body>, furniture included
+    main_text: str      # furniture removed — what duplicate detection reads
 
 
 def parse(body: bytes, base_url: str) -> Extracted:
@@ -51,7 +64,24 @@ def parse(body: bytes, base_url: str) -> Extracted:
         links=links,
         canonical=canonical,
         text=(body_node.text(separator=" ", strip=True) if body_node else ""),
+        main_text=main_text(tree),
     )
+
+
+def main_text(tree: LexborHTMLParser) -> str:
+    """Body text with the furniture stripped out.
+
+    Mutating the tree is safe here because parsing is per-response and the tree
+    is not reused — but it does mean this must run after link extraction, since
+    it removes the <nav> the links live in.
+    """
+    for tag in BOILERPLATE:
+        for node in tree.css(tag):
+            node.decompose()
+    body_node = tree.css_first("body")
+    if body_node is None:
+        return ""
+    return " ".join(body_node.text(separator=" ", strip=True).split())
 
 
 def absolutise(href: str, base: str) -> str | None:

@@ -36,6 +36,10 @@ class MemoryFrontier:
     def pop(self) -> Request | None:
         return self._queue.popleft() if self._queue else None
 
+    def requeue(self, request: Request) -> None:
+        """Return an already-seen request to the head of the queue."""
+        self._queue.appendleft(request)
+
     def __len__(self) -> int:
         return len(self._queue)
 

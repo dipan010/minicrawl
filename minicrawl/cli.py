@@ -46,6 +46,13 @@ def verify(result, host: str) -> int:
     if trapped:
         print(f"  bounded     {len(trapped)} trap pages under {'/, '.join(prefixes)}"
               f" — capped, not excluded")
+    if result.dedup_counts:
+        counts = result.dedup_counts
+        print(f"  documents   {counts.get('new', 0)} unique, "
+              f"{counts.get('exact_duplicate', 0)} exact dup, "
+              f"{counts.get('near_duplicate', 0)} near dup, "
+              f"{counts.get('canonical_alias', 0)} canonical alias, "
+              f"{counts.get('already_seen', 0)} refetched")
     if result.rejected_by_traps:
         reasons = ", ".join(f"{n} {why}" for why, n in
                             sorted(result.rejected_by_traps.items()))

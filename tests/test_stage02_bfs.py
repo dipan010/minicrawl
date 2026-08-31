@@ -18,7 +18,7 @@ async def result(base_url="http://127.0.0.1:8081/"):
     loop, so they keep running against the loop as stage 2 left it."""
     return await crawl(CrawlConfig(seeds=[base_url], max_pages=60, max_depth=6,
                                    respect_robots=False, workers=1,
-                                   normalize_urls=False, traps=None))
+                                   normalize_urls=False, traps=None, dedup=None))
 
 
 async def test_finds_every_expected_page(result, manifest):
@@ -41,7 +41,7 @@ async def test_stays_on_the_seed_host(result):
 async def test_depth_limit_is_enforced(base):
     shallow = await crawl(CrawlConfig(seeds=[f"{base}/"], max_pages=60, max_depth=1,
                                       respect_robots=False, workers=1,
-                                      normalize_urls=False, traps=None))
+                                      normalize_urls=False, traps=None, dedup=None))
     assert max(p.depth for p in shallow.pages) == 1
 
 

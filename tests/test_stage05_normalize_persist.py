@@ -120,9 +120,12 @@ def test_other_guards():
 
 
 async def test_generator_trap_is_bounded(base):
-    """The flip of stage 2's `characterises_generator_trap_is_entered`."""
+    """The flip of stage 2's `characterises_generator_trap_is_entered`.
+
+    Runs with dedup off: stage 6 added a content-level defence that stops the
+    chain sooner, and this test is about the URL-shape guard in isolation."""
     result = await crawl(CrawlConfig(seeds=[f"{base}/"], max_depth=6, max_delay=0.0,
-                                     traps=TrapGuard(shape_budget=5)))
+                                     traps=TrapGuard(shape_budget=5), dedup=None))
     gen = [p for p in result.paths(HOST) if p.startswith("/gen/")]
     assert len(gen) == 5
     assert result.rejected_by_traps["shape_budget"] > 0
@@ -176,6 +179,28 @@ async def test_in_flight_rows_are_requeued_after_a_crash(base, tmp_path):
     assert frontier.recovered == stranded
     assert len(frontier) == stranded
     frontier.close_db()
+
+
+async def test_hitting_the_page_cap_does_not_mark_a_url_done(base, tmp_path):
+    """Regression, found during stage 6.
+
+    When a worker hits max_pages it stops without processing the request it is
+    holding. Releasing that as *finished* marked it done in the durable
+    frontier, and every later resume skipped it -- a page silently lost from
+    every capped-then-resumed crawl. The request has to go back on the queue."""
+    db = tmp_path / "budget.sqlite3"
+    first = await crawl(CrawlConfig(seeds=[f"{base}/"], max_pages=5, max_depth=6,
+                                    max_delay=0.0, frontier_path=str(db)))
+    assert first.stopped_because.startswith("max_pages")
+
+    fetched = {p.url for p in first.pages}
+    conn = sqlite3.connect(db)
+    done = {row[0] for row in conn.execute("SELECT url FROM frontier WHERE state='done'")}
+    conn.close()
+    # Everything marked done was either fetched, blocked by robots, or recorded
+    # as a redirect landing. Nothing may be done merely for having been held.
+    accounted = fetched | set(first.blocked_by_robots) | {p.final_url for p in first.pages}
+    assert done <= accounted
 
 
 async def test_the_table_is_the_seen_set(tmp_path):
