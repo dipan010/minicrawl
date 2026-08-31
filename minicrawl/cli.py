@@ -51,6 +51,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="crawl as if robots.txt did not exist (stage 2 behaviour)")
     ap.add_argument("--delay", type=float, default=0.0,
                     help="per-host delay when robots.txt states no Crawl-delay")
+    ap.add_argument("--workers", type=int, default=8,
+                    help="concurrent workers, shared across all hosts")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--verify", action="store_true",
                     help="diff the crawl against testsite/manifest.json")
@@ -60,12 +62,17 @@ def main(argv: list[str] | None = None) -> int:
         seeds=args.seeds, max_pages=args.max_pages, max_depth=args.max_depth,
         timeout=args.timeout, same_host=not args.all_hosts,
         respect_robots=not args.ignore_robots, default_delay=args.delay,
+        workers=args.workers,
         on_page=None if args.quiet else print_page,
     )
     result = asyncio.run(crawl(config))
-    print(f"\n  {len(result.pages)} pages, {len(result.errors)} errors, "
+    peak = sorted(result.peak_in_flight_per_host.values(), reverse=True)[:1]
+    print(f"\n  {result.workers} workers over {result.hosts_seen} host(s), "
+          f"peak {result.peak_in_flight} in flight, "
+          f"max {peak[0] if peak else 0} per host")
+    print(f"  {len(result.pages)} pages, {len(result.errors)} errors, "
           f"{len(result.blocked_by_robots)} blocked by robots.txt, "
-          f"{result.duration:.2f}s ({result.slept_for_politeness:.2f}s of it polite) "
+          f"{result.duration:.2f}s, {result.worker_seconds_waiting:.1f} worker-s waiting "
           f"— stopped: {result.stopped_because}")
     if args.verify:
         return verify(result, urlsplit(args.seeds[0]).netloc)

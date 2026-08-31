@@ -130,10 +130,11 @@ async def test_crawl_delay_actually_slows_the_crawl(base):
     """Crawl-delay is the gap between request *starts*, so the time a page takes
     to fetch counts toward it — total sleep is always a little under
     delay x gaps. The wall clock is what has to clear the bar."""
-    result = await crawl(CrawlConfig(seeds=[f"{base}/"], max_pages=6, max_depth=2))
+    result = await crawl(CrawlConfig(seeds=[f"{base}/"], max_pages=6, max_depth=2,
+                                     workers=1))
     gaps = len(result.pages) - 1
     assert result.duration >= 0.2 * gaps
-    assert result.slept_for_politeness > 0.9 * 0.2 * gaps
+    assert result.worker_seconds_waiting > 0.9 * 0.2 * gaps
 
 
 async def test_sitemap_directive_is_collected(base):

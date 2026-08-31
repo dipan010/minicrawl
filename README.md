@@ -17,7 +17,7 @@ is verified against the ground-truth manifest.
 | 1 ✅ | `fetch.py`, `extract.py` | HTTP semantics, body caps, `<base href>`, URL resolution + validation |
 | 2 ✅ | `crawler.py`, `frontier/memory.py` | The crawl loop, BFS, cycle avoidance, scope |
 | 3 ✅ | `robots.py`, `politeness.py` | robots.txt (hand-rolled), crawl-delay, per-host rate limits |
-| 4 | async worker pool, per-host queues | Concurrency that does not become a DoS |
+| 4 ✅ | `frontier/hosted.py`, worker pool | Concurrency that does not become a DoS |
 | 5 | `normalize.py`, `frontier/sqlite.py` | Canonicalisation, dedup, resumable crawls, trap escape |
 | 6 | `extract.py` main-text, `dedup.py` | Boilerplate removal, exact + near-dup (simhash) |
 | 7 | `render.py` | Escalating to Playwright *only* for pages that need it |
@@ -35,6 +35,9 @@ uv run python -m testsite.server
 
 # terminal 2 — crawl it, and diff against ground truth
 uv run minicrawl http://127.0.0.1:8081/ --max-pages 40 --verify
+
+# concurrency across hosts, politeness within each one
+uv run minicrawl http://127.0.0.1:808{1,2,4}/ --workers 8 --max-pages 60
 
 uv run pytest -q
 ```

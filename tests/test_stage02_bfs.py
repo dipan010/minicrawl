@@ -13,10 +13,11 @@ HOST = "127.0.0.1:8081"
 
 @pytest.fixture(scope="module")
 async def result(base_url="http://127.0.0.1:8081/"):
-    """Stage-2 semantics, pinned: robots.txt off, no delay. Stage 3 added both,
-    and these tests are about the loop, not about politeness."""
+    """Stage-2 semantics, pinned: robots.txt off, one worker. Stages 3 and 4
+    added both; these tests are about the loop shape, not politeness or
+    concurrency."""
     return await crawl(CrawlConfig(seeds=[base_url], max_pages=60, max_depth=6,
-                                   respect_robots=False))
+                                   respect_robots=False, workers=1))
 
 
 async def test_finds_every_expected_page(result, manifest):
@@ -36,7 +37,7 @@ async def test_stays_on_the_seed_host(result):
 
 async def test_depth_limit_is_enforced(base):
     shallow = await crawl(CrawlConfig(seeds=[f"{base}/"], max_pages=60, max_depth=1,
-                                      respect_robots=False))
+                                      respect_robots=False, workers=1))
     assert max(p.depth for p in shallow.pages) == 1
 
 

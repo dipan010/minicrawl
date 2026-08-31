@@ -41,15 +41,25 @@ class Politeness:
     def delay_for(self, host: str) -> float:
         return self._delays.get(host, self.default_delay)
 
+    def ready_at(self, host: str) -> float:
+        """Monotonic time at which this host may be hit again."""
+        return self._next_allowed.get(host, 0.0)
+
+    def mark_used(self, host: str) -> None:
+        """Start the clock. Called when a request *begins*, not when it ends:
+        Crawl-delay is the gap between request starts, so a slow response does
+        not earn the crawler extra waiting on top of it."""
+        self._next_allowed[host] = time.monotonic() + self.delay_for(host)
+
     async def wait(self, host: str) -> float:
-        """Block until this host may be hit again, then reserve the next slot."""
-        now = time.monotonic()
-        ready_at = self._next_allowed.get(host, 0.0)
-        slept = 0.0
-        if ready_at > now:
-            slept = ready_at - now
+        """Sequential form (stage 3): block until this host is ready, then take it.
+
+        Stage 4 splits this into `ready_at` + `mark_used` so that a worker can
+        decide to go serve a *different* host instead of sleeping here.
+        """
+        slept = max(0.0, self.ready_at(host) - time.monotonic())
+        if slept:
             self.waited_total += slept
             await asyncio.sleep(slept)
-            now = time.monotonic()
-        self._next_allowed[host] = now + self.delay_for(host)
+        self.mark_used(host)
         return slept

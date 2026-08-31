@@ -8,6 +8,9 @@ Limits of this implementation, all fixed later:
   - the seen-set is raw URL strings, so /a and /a/ count as two pages (stage 5)
   - everything lives in RAM, so a crash loses the crawl (stage 5)
   - one process owns it, so there is no way to add workers (stage 9)
+
+Stage 4 keeps this class but stops using it directly: HostedFrontier holds one
+of these per host and shares a single seen-set across them all.
 """
 from __future__ import annotations
 
@@ -17,9 +20,11 @@ from .base import Request
 
 
 class MemoryFrontier:
-    def __init__(self) -> None:
+    def __init__(self, seen: set[str] | None = None) -> None:
         self._queue: deque[Request] = deque()
-        self._seen: set[str] = set()
+        # A shared seen-set lets many of these act as one frontier partitioned
+        # by host, which is exactly what stage 4's HostedFrontier does with them.
+        self._seen: set[str] = seen if seen is not None else set()
 
     def push(self, request: Request) -> bool:
         if request.url in self._seen:
