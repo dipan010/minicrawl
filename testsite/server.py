@@ -24,7 +24,7 @@ LAST_MODIFIED = "Wed, 12 Feb 2025 10:00:00 GMT"
 def variant_hrefs(page: dict) -> list[str]:
     """Every spelling on /variants, in one flat list, malformed ones included."""
     out = [h for g in page["variant_groups"].values() for h in g["hrefs"]]
-    return out + page["malformed_hrefs"]
+    return out + list(page["redirect_normalized"]) + page["malformed_hrefs"]
 
 
 def render_page(path: str, port: int) -> str:
@@ -109,11 +109,16 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith(spec.GEN_PREFIX):
             return self.gen(path, port)
 
-        # Resolve to a canonical key first: the corpus is deliberately reachable
-        # under several spellings, but there is only one page behind them.
+        # A trailing-slash spelling is not silently served: the server answers
+        # with a 301, the way a real one does. That is how a crawler is supposed
+        # to learn that /a/ and /a are the same page -- not by guessing.
+        if path not in spec.PAGES and path.endswith("/") and path[:-1] in spec.PAGES:
+            self.send_response(301)
+            self.send_header("Location", path[:-1])
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         key = path
-        if key not in spec.PAGES and key.endswith("/") and key[:-1] in spec.PAGES:
-            key = key[:-1]
         page = spec.PAGES.get(key)
         if page is None:
             return self.send(404, b"<h1>404</h1>", "text/html; charset=utf-8")

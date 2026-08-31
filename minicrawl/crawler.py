@@ -19,11 +19,13 @@ from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 from . import extract, fetch, robots as robots_mod
-from .frontier import HostedFrontier, Request
+from .frontier import HostedFrontier, Request, SqliteFrontier
+from .normalize import normalize
 from .politeness import Politeness
+from .traps import TrapGuard
 
 
-@dataclass(slots=True)
+@dataclass
 class CrawlConfig:
     seeds: list[str]
     max_pages: int = 100
@@ -40,6 +42,10 @@ class CrawlConfig:
     max_delay: float = 30.0             # ceiling; a hostile Crawl-delay is not binding
     # -- stage 4 --
     workers: int = 8                    # concurrent workers, shared across all hosts
+    # -- stage 5 --
+    normalize_urls: bool = True
+    traps: TrapGuard | None = field(default_factory=TrapGuard)
+    frontier_path: str | None = None    # None = in memory; a path = resumable
 
 
 @dataclass(slots=True)
@@ -68,6 +74,9 @@ class CrawlResult:
     peak_in_flight: int = 0                          # across all hosts
     peak_in_flight_per_host: dict[str, int] = field(default_factory=dict)
     hosts_seen: int = 0
+    rejected_by_traps: dict[str, int] = field(default_factory=dict)
+    requeued_on_resume: int = 0
+    already_done_on_start: int = 0
 
     @property
     def duration(self) -> float:
@@ -126,12 +135,23 @@ class RobotsCache:
 async def crawl(config: CrawlConfig) -> CrawlResult:
     politeness = Politeness(default_delay=config.default_delay,
                             min_delay=config.min_delay, max_delay=config.max_delay)
-    frontier = HostedFrontier(politeness)
-    for seed in config.seeds:
-        frontier.push_nowait(Request(url=seed, depth=0))
-    seed_hosts = {host_of(s) for s in config.seeds}
+
+    def canonical(url: str) -> str | None:
+        return normalize(url) if config.normalize_urls else url
 
     result = CrawlResult(started=time.perf_counter(), workers=config.workers)
+
+    if config.frontier_path:
+        frontier = SqliteFrontier(politeness, config.frontier_path)
+        result.requeued_on_resume = frontier.recovered
+        result.already_done_on_start = frontier.done_count
+    else:
+        frontier = HostedFrontier(politeness)
+
+    seeds = [u for u in (canonical(s) for s in config.seeds) if u]
+    for seed in seeds:
+        frontier.push_nowait(Request(url=seed, depth=0))
+    seed_hosts = {host_of(s) for s in seeds}
     client = fetch.make_client(timeout=config.timeout, user_agent=config.user_agent)
     robots = RobotsCache(client, config.robots_agent, politeness) \
         if config.respect_robots else None
@@ -173,6 +193,13 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                             depth=request.depth, title="", n_links=0,
                             elapsed=got.elapsed, error=got.error)
 
+                # We followed redirects to get here, so we already hold the
+                # content of `final_url`. Record it as seen or it gets queued
+                # again under its own spelling and fetched a second time.
+                landed = canonical(got.final_url)
+                if landed and landed != request.url:
+                    await frontier.mark_seen(landed)
+
                 if got.error or not got.ok:
                     page.error = page.error or f"http {got.status}"
                     result.errors.append(page)
@@ -183,8 +210,18 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                     found = extract.parse(got.body, got.final_url)
                     page.title, page.n_links = found.title, len(found.links)
                     if request.depth < config.max_depth:
-                        for link in found.links:
+                        for raw in found.links:
+                            link = canonical(raw)
+                            if link is None:
+                                continue
                             if config.same_host and host_of(link) not in seed_hosts:
+                                continue
+                            # Ask the frontier first: a URL it already knows will
+                            # be deduplicated anyway, and must not spend a trap
+                            # budget that a genuinely new URL might need.
+                            if frontier.known(link):
+                                continue
+                            if config.traps and config.traps.admit(link):
                                 continue
                             await frontier.push(
                                 Request(link, request.depth + 1, via=request.url))
@@ -201,6 +238,8 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
 
     if robots is not None:
         result.sitemaps = robots.sitemaps
+    if config.traps is not None:
+        result.rejected_by_traps = dict(config.traps.rejected)
     result.worker_seconds_waiting = (politeness.waited_total
                                      + frontier.worker_seconds_waiting)
     result.hosts_seen = frontier.host_count

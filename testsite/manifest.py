@@ -107,8 +107,14 @@ def build() -> dict:
              "hrefs": group["hrefs"]}
             for name, group in spec.PAGES["/variants"]["variant_groups"].items()
         ],
+        # Settled by a 301 from the server, not by the normaliser.
+        "redirect_normalized": spec.PAGES["/variants"]["redirect_normalized"],
         # Unparseable: must be dropped at extraction, never resolved or fetched.
         "malformed_hrefs": spec.PAGES["/variants"]["malformed_hrefs"],
+        # Extras under these prefixes are trap pages, expected to be bounded
+        # rather than absent -- a general trap defence limits a generator, it
+        # cannot know to exclude it entirely. Stage 6 removes them on content.
+        "trap_prefixes": ["/gen/"],
         "redirect_chains": [{"start": "/r/1", "hops": ["/r/2", "/r/3"], "final": "/a"}],
         "redirect_loops": [["/loop/1", "/loop/2"]],
         "dup_pairs": {

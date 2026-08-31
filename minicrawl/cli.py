@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .crawler import CrawlConfig, Page, crawl
+from .traps import TrapGuard
 
 MANIFEST = Path(__file__).resolve().parent.parent / "testsite" / "manifest.json"
 
@@ -26,17 +27,34 @@ def print_page(page: Page) -> None:
 def verify(result, host: str) -> int:
     manifest = json.loads(MANIFEST.read_text())
     expected = set(manifest["expected_pages"])
+    prefixes = tuple(manifest["trap_prefixes"])
     got = result.paths(host)
-    missing, extra = sorted(expected - got), sorted(got - expected)
+
+    missing = sorted(expected - got)
+    extra = sorted(got - expected)
+    # Trap pages are expected to be *bounded*, not absent: a general defence can
+    # cap a generator, it cannot know to exclude it entirely. Stage 6 removes
+    # these on content rather than on URL shape.
+    trapped = [p for p in extra if p.startswith(prefixes)]
+    unexpected = [p for p in extra if not p.startswith(prefixes)]
+
     print(f"\n  expected {len(expected)} pages, crawled {len(got)} on {host}")
     for path in missing:
-        print(f"  MISSING  {path}")
-    for path in extra:
-        print(f"  EXTRA    {path}")
-    if not missing and not extra:
+        print(f"  MISSING     {path}")
+    for path in unexpected:
+        print(f"  UNEXPECTED  {path}")
+    if trapped:
+        print(f"  bounded     {len(trapped)} trap pages under {'/, '.join(prefixes)}"
+              f" — capped, not excluded")
+    if result.rejected_by_traps:
+        reasons = ", ".join(f"{n} {why}" for why, n in
+                            sorted(result.rejected_by_traps.items()))
+        print(f"  refused     {reasons}")
+
+    if not missing and not unexpected:
         print("  exact match against the manifest")
         return 0
-    print(f"\n  {len(missing)} missing, {len(extra)} extra")
+    print(f"\n  {len(missing)} missing, {len(unexpected)} unexpected")
     return 1
 
 
@@ -53,6 +71,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="per-host delay when robots.txt states no Crawl-delay")
     ap.add_argument("--workers", type=int, default=8,
                     help="concurrent workers, shared across all hosts")
+    ap.add_argument("--frontier", metavar="PATH",
+                    help="SQLite frontier file; re-run with the same path to resume")
+    ap.add_argument("--no-normalize", action="store_true")
+    ap.add_argument("--no-traps", action="store_true")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--verify", action="store_true",
                     help="diff the crawl against testsite/manifest.json")
@@ -62,7 +84,9 @@ def main(argv: list[str] | None = None) -> int:
         seeds=args.seeds, max_pages=args.max_pages, max_depth=args.max_depth,
         timeout=args.timeout, same_host=not args.all_hosts,
         respect_robots=not args.ignore_robots, default_delay=args.delay,
-        workers=args.workers,
+        workers=args.workers, frontier_path=args.frontier,
+        normalize_urls=not args.no_normalize,
+        traps=None if args.no_traps else TrapGuard(),
         on_page=None if args.quiet else print_page,
     )
     result = asyncio.run(crawl(config))
@@ -70,6 +94,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n  {result.workers} workers over {result.hosts_seen} host(s), "
           f"peak {result.peak_in_flight} in flight, "
           f"max {peak[0] if peak else 0} per host")
+    if result.requeued_on_resume or result.already_done_on_start:
+        print(f"  resumed: {result.already_done_on_start} pages already done, "
+              f"{result.requeued_on_resume} requeued from a dead worker")
     print(f"  {len(result.pages)} pages, {len(result.errors)} errors, "
           f"{len(result.blocked_by_robots)} blocked by robots.txt, "
           f"{result.duration:.2f}s, {result.worker_seconds_waiting:.1f} worker-s waiting "

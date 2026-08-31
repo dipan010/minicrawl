@@ -422,7 +422,6 @@
       "canonical": "http://127.0.0.1:8081/a",
       "hrefs": [
         "/a",
-        "/a/",
         "/a?",
         "/a#section",
         "/a#other",
@@ -443,8 +442,14 @@
       ]
     }
   ],
+  "redirect_normalized": {
+    "/a/": "/a"
+  },
   "malformed_hrefs": [
     "http://127.0.0.1:8081:/a"
+  ],
+  "trap_prefixes": [
+    "/gen/"
   ],
   "redirect_chains": [
     {

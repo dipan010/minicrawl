@@ -13,11 +13,12 @@ HOST = "127.0.0.1:8081"
 
 @pytest.fixture(scope="module")
 async def result(base_url="http://127.0.0.1:8081/"):
-    """Stage-2 semantics, pinned: robots.txt off, one worker. Stages 3 and 4
-    added both; these tests are about the loop shape, not politeness or
-    concurrency."""
+    """Stage-2 semantics, pinned. Later stages added robots.txt, concurrency,
+    normalisation and trap defences; these tests are about the shape of the
+    loop, so they keep running against the loop as stage 2 left it."""
     return await crawl(CrawlConfig(seeds=[base_url], max_pages=60, max_depth=6,
-                                   respect_robots=False, workers=1))
+                                   respect_robots=False, workers=1,
+                                   normalize_urls=False, traps=None))
 
 
 async def test_finds_every_expected_page(result, manifest):
@@ -25,7 +26,9 @@ async def test_finds_every_expected_page(result, manifest):
     assert not missing, f"link extraction missed {sorted(missing)}"
 
 
-async def test_terminates_despite_the_generator_trap(result):
+async def test_terminates_only_because_of_the_page_cap(result):
+    """Stage 2 has no way to survive /gen/*: max_pages is what stops it, not the
+    frontier draining. Stage 5's trap guard is what makes draining possible."""
     assert result.stopped_because.startswith("max_pages")
     assert result.duration < 30
 
@@ -37,7 +40,8 @@ async def test_stays_on_the_seed_host(result):
 
 async def test_depth_limit_is_enforced(base):
     shallow = await crawl(CrawlConfig(seeds=[f"{base}/"], max_pages=60, max_depth=1,
-                                      respect_robots=False, workers=1))
+                                      respect_robots=False, workers=1,
+                                      normalize_urls=False, traps=None))
     assert max(p.depth for p in shallow.pages) == 1
 
 
@@ -48,20 +52,13 @@ async def test_records_errors_without_stopping(result):
     assert len(result.pages) > 20
 
 
-# --- known gaps, fixed by later stages ------------------------------------
+# --- known gaps, all now fixed --------------------------------------------
 #
-# FLIPPED at stage 3: `test_characterises_no_robots_support_yet` lived here and
-# asserted that /private/secret got fetched. It now lives in
-# tests/test_stage03_robots.py as test_disallowed_pages_are_never_fetched,
-# asserting the opposite. That is what finishing a stage looks like.
-
-async def test_characterises_no_url_normalisation_yet(result):
-    """Stage 5 turns this around: 10 spellings of /a collapse to 2 fetches
-    (bare /a, and /a?a=1&b=2 — the query is normalised, not discarded)."""
-    fetched_a = [p for p in result.pages if p.final_url.startswith("http://127.0.0.1:8081/a")]
-    assert len(fetched_a) > 2
-
-
-async def test_characterises_generator_trap_is_entered(result):
-    """Stage 5 turns this around: a path-depth cap keeps /gen/* out entirely."""
-    assert any(path.startswith("/gen/") for path in result.paths(HOST))
+# Every characterisation test that lived here has been flipped:
+#
+#   no_robots_support_yet    -> stage 3, test_disallowed_pages_are_never_fetched
+#   no_url_normalisation_yet -> stage 5, test_ten_spellings_of_a_become_two_fetches
+#   generator_trap_is_entered-> stage 5, test_generator_trap_is_bounded
+#
+# Each asserted a shortcoming, and each was written to fail when the stage that
+# fixed it landed. Flipping one is what finishing a stage looks like.

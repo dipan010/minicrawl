@@ -115,7 +115,7 @@ PAGES: dict[str, dict] = {
         "variant_groups": {
             "bare": {
                 "canonical": "/a",
-                "hrefs": ["/a", "/a/", "/a?", "/a#section", "/a#other",
+                "hrefs": ["/a", "/a?", "/a#section", "/a#other",
                           "http://127.0.0.1:8081/a", "http://127.0.0.1:8081/./a",
                           "http://127.0.0.1:8081/x/../a"],
             },
@@ -125,6 +125,9 @@ PAGES: dict[str, dict] = {
                           "/a?a=1&b=2&utm_source=news", "/a?sid=99a1&a=1&b=2"],
             },
         },
+        # NOT a normalisation case: /a and /a/ are formally distinct resources.
+        # The server settles it with a 301, and the crawler learns by following.
+        "redirect_normalized": {"/a/": "/a"},
         "malformed_hrefs": ["http://127.0.0.1:8081:/a"],
         "flags": ["normalization"],
     },

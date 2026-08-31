@@ -70,13 +70,16 @@ def test_protocol_relative_and_bare_relative_links(base):
 def test_fragments_are_dropped_and_deduped(base, manifest):
     got = parse_path(base, "/variants")
     declared = sum(len(g["hrefs"]) for g in manifest["normalization_groups"])
-    assert declared == 13 and len(manifest["malformed_hrefs"]) == 1
+    assert declared == 12
+    assert len(manifest["redirect_normalized"]) == 1    # /a/ -> settled by a 301
+    assert len(manifest["malformed_hrefs"]) == 1
     # Fragments collapse at extraction (/a#section and /a#other become /a).
     # The other spellings survive until stage 5 normalises them.
     assert f"{base}/a#section" not in got.links
     # 14 hrefs in the page -> 9 distinct links here: fragments, the bare "?" and
     # the repeated absolute form collapse at extraction, the malformed one is
-    # dropped. Stage 5 must take these 9 down to 2.
+    # dropped. Stage 5 takes these 9 down to 3 by normalisation, and then to 2
+    # by following the 301 on /a/.
     assert len(got.links) == 9
 
 

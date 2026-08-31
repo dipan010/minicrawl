@@ -18,7 +18,7 @@ is verified against the ground-truth manifest.
 | 2 ✅ | `crawler.py`, `frontier/memory.py` | The crawl loop, BFS, cycle avoidance, scope |
 | 3 ✅ | `robots.py`, `politeness.py` | robots.txt (hand-rolled), crawl-delay, per-host rate limits |
 | 4 ✅ | `frontier/hosted.py`, worker pool | Concurrency that does not become a DoS |
-| 5 | `normalize.py`, `frontier/sqlite.py` | Canonicalisation, dedup, resumable crawls, trap escape |
+| 5 ✅ | `normalize.py`, `traps.py`, `frontier/sqlite.py` | Canonicalisation, dedup, resumable crawls, trap defence |
 | 6 | `extract.py` main-text, `dedup.py` | Boilerplate removal, exact + near-dup (simhash) |
 | 7 | `render.py` | Escalating to Playwright *only* for pages that need it |
 | 8 | `freshness.py`, sitemaps | Conditional GET, recrawl scheduling, priority frontier |
@@ -39,6 +39,9 @@ uv run minicrawl http://127.0.0.1:8081/ --max-pages 40 --verify
 # concurrency across hosts, politeness within each one
 uv run minicrawl http://127.0.0.1:808{1,2,4}/ --workers 8 --max-pages 60
 
+# a resumable crawl: interrupt it, run it again, it picks up where it stopped
+uv run minicrawl http://127.0.0.1:8081/ --frontier crawl.sqlite3 --verify
+
 uv run pytest -q
 ```
 
@@ -52,15 +55,26 @@ parsing — and writes `testsite/manifest.json`, including `expected_pages`: the
 
 The crawler has to reach the same answer the hard way. That gap is the test.
 
-At stage 2 the diff reads:
+At stage 2 the diff read:
 
 ```
 expected 19 pages, crawled 32 on 127.0.0.1:8081
 0 missing, 13 extra     # /private/secret + 12 pages of generator trap
 ```
 
-Zero missing means link extraction is correct. The extras are the honest
-scoreboard of what stages 3 and 5 still have to fix.
+At stage 5 it reads:
+
+```
+expected 19 pages, crawled 24 on 127.0.0.1:8081
+bounded     5 trap pages under /gen/ — capped, not excluded
+exact match against the manifest
+                          ... stopped: frontier drained
+```
+
+`frontier drained` is the point. Stages 2–4 only ever stopped because
+`max_pages` ran out. The 5 remaining trap pages are bounded rather than absent:
+a general defence can cap a generator, it cannot know to exclude one. Stage 6
+removes them on content.
 
 ## Known gaps, on purpose
 
@@ -69,6 +83,10 @@ the crawler's *current* failures — no URL normalisation, walks into the
 generator trap. Each one is designed to break when the stage that fixes it
 lands. Flipping a characterisation test is the definition of done for a stage.
 
-Stage 3 flipped the first one: `test_characterises_no_robots_support_yet`
-asserted that `/private/secret` got fetched, and is now
-`test_disallowed_pages_are_never_fetched` asserting the opposite.
+All three have now been flipped:
+
+| Asserted at stage 2 | Flipped by | Now asserts |
+|---|---|---|
+| `no_robots_support_yet` | stage 3 | `test_disallowed_pages_are_never_fetched` |
+| `no_url_normalisation_yet` | stage 5 | `test_fourteen_spellings_of_a_become_three_fetches` |
+| `generator_trap_is_entered` | stage 5 | `test_generator_trap_is_bounded` |
