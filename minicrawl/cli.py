@@ -47,6 +47,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--max-depth", type=int, default=5)
     ap.add_argument("--timeout", type=float, default=10.0)
     ap.add_argument("--all-hosts", action="store_true", help="leave the seed hosts")
+    ap.add_argument("--ignore-robots", action="store_true",
+                    help="crawl as if robots.txt did not exist (stage 2 behaviour)")
+    ap.add_argument("--delay", type=float, default=0.0,
+                    help="per-host delay when robots.txt states no Crawl-delay")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--verify", action="store_true",
                     help="diff the crawl against testsite/manifest.json")
@@ -55,11 +59,14 @@ def main(argv: list[str] | None = None) -> int:
     config = CrawlConfig(
         seeds=args.seeds, max_pages=args.max_pages, max_depth=args.max_depth,
         timeout=args.timeout, same_host=not args.all_hosts,
+        respect_robots=not args.ignore_robots, default_delay=args.delay,
         on_page=None if args.quiet else print_page,
     )
     result = asyncio.run(crawl(config))
     print(f"\n  {len(result.pages)} pages, {len(result.errors)} errors, "
-          f"{result.duration:.2f}s — stopped: {result.stopped_because}")
+          f"{len(result.blocked_by_robots)} blocked by robots.txt, "
+          f"{result.duration:.2f}s ({result.slept_for_politeness:.2f}s of it polite) "
+          f"— stopped: {result.stopped_because}")
     if args.verify:
         return verify(result, urlsplit(args.seeds[0]).netloc)
     return 0

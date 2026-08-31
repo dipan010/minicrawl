@@ -16,7 +16,7 @@ is verified against the ground-truth manifest.
 |------:|------|-------------------|
 | 1 ✅ | `fetch.py`, `extract.py` | HTTP semantics, body caps, `<base href>`, URL resolution + validation |
 | 2 ✅ | `crawler.py`, `frontier/memory.py` | The crawl loop, BFS, cycle avoidance, scope |
-| 3 | `robots.py`, `politeness.py` | robots.txt (hand-rolled), crawl-delay, per-host rate limits |
+| 3 ✅ | `robots.py`, `politeness.py` | robots.txt (hand-rolled), crawl-delay, per-host rate limits |
 | 4 | async worker pool, per-host queues | Concurrency that does not become a DoS |
 | 5 | `normalize.py`, `frontier/sqlite.py` | Canonicalisation, dedup, resumable crawls, trap escape |
 | 6 | `extract.py` main-text, `dedup.py` | Boilerplate removal, exact + near-dup (simhash) |
@@ -61,8 +61,11 @@ scoreboard of what stages 3 and 5 still have to fix.
 
 ## Known gaps, on purpose
 
-`tests/test_stage02_bfs.py` ends with three `test_characterises_*` tests that
-assert the crawler's *current* failures — no robots support, no URL
-normalisation, walks into the generator trap. Each one is designed to break
-when the stage that fixes it lands. Flipping a characterisation test is the
-definition of done for a stage.
+`tests/test_stage02_bfs.py` ends with `test_characterises_*` tests that assert
+the crawler's *current* failures — no URL normalisation, walks into the
+generator trap. Each one is designed to break when the stage that fixes it
+lands. Flipping a characterisation test is the definition of done for a stage.
+
+Stage 3 flipped the first one: `test_characterises_no_robots_support_yet`
+asserted that `/private/secret` got fetched, and is now
+`test_disallowed_pages_are_never_fetched` asserting the opposite.

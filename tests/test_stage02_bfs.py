@@ -13,7 +13,10 @@ HOST = "127.0.0.1:8081"
 
 @pytest.fixture(scope="module")
 async def result(base_url="http://127.0.0.1:8081/"):
-    return await crawl(CrawlConfig(seeds=[base_url], max_pages=60, max_depth=6))
+    """Stage-2 semantics, pinned: robots.txt off, no delay. Stage 3 added both,
+    and these tests are about the loop, not about politeness."""
+    return await crawl(CrawlConfig(seeds=[base_url], max_pages=60, max_depth=6,
+                                   respect_robots=False))
 
 
 async def test_finds_every_expected_page(result, manifest):
@@ -32,7 +35,8 @@ async def test_stays_on_the_seed_host(result):
 
 
 async def test_depth_limit_is_enforced(base):
-    shallow = await crawl(CrawlConfig(seeds=[f"{base}/"], max_pages=60, max_depth=1))
+    shallow = await crawl(CrawlConfig(seeds=[f"{base}/"], max_pages=60, max_depth=1,
+                                      respect_robots=False))
     assert max(p.depth for p in shallow.pages) == 1
 
 
@@ -44,11 +48,11 @@ async def test_records_errors_without_stopping(result):
 
 
 # --- known gaps, fixed by later stages ------------------------------------
-
-async def test_characterises_no_robots_support_yet(result):
-    """Stage 3 turns this around: /private/secret must stop being fetched."""
-    assert "/private/secret" in result.paths(HOST)
-
+#
+# FLIPPED at stage 3: `test_characterises_no_robots_support_yet` lived here and
+# asserted that /private/secret got fetched. It now lives in
+# tests/test_stage03_robots.py as test_disallowed_pages_are_never_fetched,
+# asserting the opposite. That is what finishing a stage looks like.
 
 async def test_characterises_no_url_normalisation_yet(result):
     """Stage 5 turns this around: 10 spellings of /a collapse to 2 fetches
