@@ -33,6 +33,15 @@ class Fetched:
         return self.error is None and self.status is not None and 200 <= self.status < 300
 
     @property
+    def not_modified(self) -> bool:
+        """304: the server declined to send a body because our validator matched.
+
+        Not an error and not a success — a third outcome, and the cheapest
+        possible answer to "has this changed?". Treating it as either of the
+        other two is how conditional GET gets quietly broken."""
+        return self.status == 304
+
+    @property
     def is_html(self) -> bool:
         return "html" in self.content_type
 
@@ -52,11 +61,12 @@ def make_client(timeout: float = 10.0, user_agent: str = DEFAULT_UA) -> httpx.As
 
 
 async def fetch(client: httpx.AsyncClient, url: str,
-                max_bytes: int = MAX_BODY_BYTES) -> Fetched:
+                max_bytes: int = MAX_BODY_BYTES,
+                headers: dict[str, str] | None = None) -> Fetched:
     started = time.perf_counter()
     try:
         # Streaming lets us stop reading a body that turns out to be enormous.
-        async with client.stream("GET", url) as resp:
+        async with client.stream("GET", url, headers=headers) as resp:
             chunks, size = [], 0
             async for chunk in resp.aiter_bytes():
                 chunks.append(chunk)

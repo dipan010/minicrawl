@@ -16,6 +16,16 @@ class Request:
     url: str
     depth: int = 0
     via: str | None = None          # the page that linked here, for debugging
+    # Seconds from now at which this request should ideally be fetched.
+    # Lower is sooner; negative means already overdue. Ignored entirely by a
+    # FIFO frontier, which is the point — the same Request travels through both
+    # orderings and only the queue decides what to do with it.
+    #
+    # Every producer MUST use these units. Seeding a recrawl with raw Unix
+    # timestamps while discovered links carry small depth numbers puts the two
+    # on incomparable scales, and every link then outranks every overdue page
+    # by a factor of a billion.
+    priority: float = 0.0
 
 
 class Frontier(Protocol):

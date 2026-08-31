@@ -127,7 +127,7 @@ PAGES: dict[str, dict] = {
             "/a", "/b", "/docs/", "/variants", "/dup/exact-1", "/dup/exact-2",
             "/dup/near-1",
             "/dup/canonical-source", "/r/1", "/loop/1", "/slow", "/js-only",
-            "/etag", "/private/secret", "/private/public-corner", "/gen/1",
+            "/etag", "/volatile", "/private/secret", "/private/public-corner", "/gen/1",
             "/files/report.pdf", "/hosts",
         ],
     },
@@ -235,8 +235,23 @@ PAGES: dict[str, dict] = {
                        "links": ["/"], "flags": ["js_only_child"]},
 
     # --- conditional GET --------------------------------------------------
+    # Every HTML page carries an ETag (see server.py); this one is the declared
+    # example the freshness tests are written against.
     "/etag": {"title": "Cacheable", "body": "<p>Has ETag and Last-Modified.</p>",
-              "links": ["/"], "etag": True, "flags": ["conditional_get"]},
+              "links": ["/"], "flags": ["conditional_get"]},
+
+    # Changes on every single request, so its validator never matches. The
+    # counterpart to /etag: one page that is always fresh and one that is never
+    # fresh is what an adaptive recrawl interval has to tell apart.
+    "/volatile": {"title": "Volatile", "body": "<p>Different every time.</p>",
+                  "links": ["/"], "volatile": True, "flags": ["always_changes"]},
+
+    # --- reachable only from the sitemap ----------------------------------
+    # NOTHING links here. A link-following crawl cannot find it at any depth,
+    # which is the entire argument for reading sitemaps.
+    "/orphan": {"title": "Orphan",
+                "body": "<p>No page on this site links to this one.</p>",
+                "links": ["/"], "flags": ["sitemap_only"]},
 
     # --- robots-excluded --------------------------------------------------
     "/private/secret": {"title": "Secret", "body": "<p>Should never be fetched.</p>",
@@ -281,7 +296,8 @@ GEN_FILLER_BLOCK = (
 SITEMAPS = {
     "/sitemap.xml": ["/sitemap-1.xml", "/sitemap-2.xml"],   # a sitemap *index*
     "/sitemap-1.xml": ["/", "/a", "/b", "/c"],
-    "/sitemap-2.xml": ["/docs/", "/docs/one", "/docs/two", "/docs/sub/three", "/etag"],
+    "/sitemap-2.xml": ["/docs/", "/docs/one", "/docs/two", "/docs/sub/three",
+                       "/etag", "/orphan"],
 }
 
 # Traps a naive crawler must survive, and the stage that fixes each.

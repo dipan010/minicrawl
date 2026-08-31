@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .crawler import CrawlConfig, Page, crawl
+from .freshness import FreshnessStore
 from .render import PlaywrightRenderer
 from .traps import TrapGuard
 
@@ -54,6 +55,12 @@ def verify(result, host: str) -> int:
               f"{counts.get('near_duplicate', 0)} near dup, "
               f"{counts.get('canonical_alias', 0)} canonical alias, "
               f"{counts.get('already_seen', 0)} refetched")
+    if result.sitemap_urls:
+        print(f"  sitemaps    {len(result.sitemap_urls)} URLs seeded from sitemaps")
+    if result.not_modified:
+        saved = result.bytes_saved_by_304
+        print(f"  conditional {len(result.not_modified)} of {len(result.pages)} answered 304 "
+              f"— {result.bytes_downloaded:,} bytes downloaded, {saved:,} not sent")
     if result.render_candidates:
         share = len(result.rendered_pages) / max(1, len(result.pages)) * 100
         print(f"  rendered    {len(result.rendered_pages)} of {len(result.pages)} pages "
@@ -90,6 +97,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-traps", action="store_true")
     ap.add_argument("--render", action="store_true",
                     help="escalate JS-dependent pages to a headless browser")
+    ap.add_argument("--sitemaps", action="store_true",
+                    help="read sitemaps as a second seed source")
+    ap.add_argument("--freshness", metavar="PATH",
+                    help="SQLite freshness store; enables conditional GET across runs")
+    ap.add_argument("--priority", action="store_true",
+                    help="order the frontier by priority instead of arrival")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--verify", action="store_true",
                     help="diff the crawl against testsite/manifest.json")
@@ -103,6 +116,8 @@ def main(argv: list[str] | None = None) -> int:
         normalize_urls=not args.no_normalize,
         traps=None if args.no_traps else TrapGuard(),
         renderer=PlaywrightRenderer() if args.render else None,
+        read_sitemaps=args.sitemaps, priority_frontier=args.priority,
+        freshness=FreshnessStore(args.freshness) if args.freshness else None,
         on_page=None if args.quiet else print_page,
     )
     result = asyncio.run(crawl(config))

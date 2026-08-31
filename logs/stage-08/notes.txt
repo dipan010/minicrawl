@@ -1,0 +1,206 @@
+STAGE 8 - FRESHNESS, SITEMAPS AND PRIORITY ORDERING
+tag: stage-08
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Stop treating a crawl as a one-shot event. Three capabilities:
+  - find pages that nothing links to          (sitemaps)
+  - recheck a known page without downloading it (conditional GET)
+  - decide WHICH pages deserve rechecking and when (scheduling)
+
+And cash the promise stage 2 made: swapping the deque for a heap turns
+breadth-first crawling into priority crawling, with nothing else changing.
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. Extended the corpus first, because it could not test any of this:
+      /orphan    listed in a sitemap, linked from NOWHERE
+      /volatile  different bytes on every single request
+      ETags on every HTML page, derived from the body (server.py)
+ 2. Wrote sitemap.py: sitemapindex vs urlset, bounded recursion, tolerant of
+    malformed XML.
+ 3. Wrote freshness.py: validators, content-hash change detection, adaptive
+    interval, all persisted in SQLite beside the frontier.
+ 4. Added 304 handling to fetch.py and a `not_modified` outcome distinct from
+    both success and error.
+ 5. Added Request.priority and PriorityQueue; made HostedFrontier take a
+    queue factory so the ordering is a constructor argument.
+ 6. Wired it all into the crawl loop; measured two runs.
+ 7. Run 2 found 10 pages where run 1 found 27. Diagnosed, and it changed the
+    design of the freshness store (see WHAT BROKE A).
+ 8. Gave the generated pages validators too, so the byte-saving figure
+    reflects the whole corpus rather than the half that was cacheable.
+ 9. Tried to demonstrate the heap beating FIFO at crawl level. Could not do it
+    honestly. Found a genuine priority-scale bug in the attempt.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+CONDITIONAL GET (HTTP validators)
+  The server hands out an ETag (an opaque token for these exact bytes) and/or
+  a Last-Modified date. Send them back as If-None-Match / If-Modified-Since
+  and the server answers 304 with no body.
+
+  304 IS A THIRD OUTCOME. Not success, not failure. Folding it into either is
+  how conditional GET gets quietly broken: as an error it looks like the page
+  vanished; as a success it looks like an empty page.
+
+  A validator is not proof. A 304 says the server BELIEVES nothing changed.
+  Comparing content hashes on the responses you do fetch is what tells you
+  whether that belief is worth anything.
+
+THE TENSION BETWEEN CACHING AND DISCOVERY
+  A 304 has no body, so it has no links. A crawler that discovers only by
+  parsing responses goes blind exactly when its cache starts working. The two
+  features are in direct opposition and something has to hold the link graph.
+  Here the freshness store keeps each page's outlinks and a 304 re-pushes
+  them. This is why real crawlers keep a link graph and not just documents.
+
+ADAPTIVE RECRAWL SCHEDULING
+  Every page has its own rhythm. One fixed interval is wrong for all of them.
+  The classic rule: unchanged -> double the interval; changed -> halve it;
+  clamp at both ends.
+    - converges on each page's actual rate with no history stored
+    - min_interval means it never hammers a live page
+    - max_interval means it never abandons a stable one
+    - known weakness: slow to react when a dormant page comes alive
+  First sight is NOT a change: there is nothing to compare against, and
+  counting it would halve the interval of every page never seen before.
+
+SITEMAPS AS AN INDEPENDENT SEED SOURCE
+  Link-following can only reach what is linked. An orphan page is unreachable
+  at any depth, with any politeness setting, by any parser. Sitemaps are the
+  only way in.
+    <sitemapindex>  a list of other sitemaps -> recurse (bounded!)
+    <urlset>        a list of pages          -> these are seeds
+  A sitemap is a hint, not a contract: malformed input yields nothing rather
+  than raising, because plenty of real ones are truncated or are an HTML error
+  page served as XML.
+
+PRIORITY FRONTIER
+  Stage 2: "a heap instead of a deque turns it into priority crawling".
+  PriorityQueue has the identical interface and six lines of difference; the
+  ordering became a constructor argument. The sequence counter is load-bearing:
+  without it, two equal priorities make heapq compare Request objects, which
+  are not orderable, and it raises.
+
+PRIORITY REQUIRES A SHARED SCALE
+  A heap is only as coherent as the units its producers agree on. Mixing a
+  Unix timestamp from one producer with a small depth integer from another is
+  not a tuning problem, it is a correctness bug, and no type system catches it.
+  Priority is now defined in ONE unit: seconds from now at which this should
+  ideally be fetched. Negative = overdue. Every producer uses it.
+
+WHEN A HEAP CHANGES NOTHING - AND WHY THAT IS FINE
+  On a single-seed breadth-first crawl with priority == depth, priority order
+  IS arrival order, so a heap and a FIFO agree by construction. That is not a
+  weakness of either; it is why swapping the data structure is safe. The heap
+  earns its keep only when priority does NOT match arrival order - something
+  important discovered after less important work is already queued.
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  sitemapindex vs urlset     -> sitemap.parse(), Sitemap.is_index
+  bounded index recursion    -> sitemap.MAX_INDEX_DEPTH, crawler._sitemap_seeds()
+  tolerant parsing           -> sitemap.parse(), the ParseError -> empty branch
+  sitemap discovery          -> robots.RobotsTxt.sitemaps (collected at stage 3,
+                                finally used here)
+  validators                 -> freshness.FreshnessStore.validators()
+  304 as a third outcome     -> fetch.Fetched.not_modified
+  conditional request        -> crawler.worker(), headers=validators
+  cached response keeps links-> freshness Record.links; crawler's 304 branch
+  change detection           -> freshness.record(), content_hash comparison
+  adaptive interval          -> freshness.FreshnessStore._next_interval()
+  clamps                     -> freshness MIN_INTERVAL / MAX_INTERVAL
+  first sight is not a change-> freshness.record(), `previous is None` branch
+  schedule query             -> freshness.due_urls(), is_due()
+  byte accounting            -> freshness.bytes_saved, Record.body_bytes
+  heap ordering              -> frontier/memory.py PriorityQueue
+  pluggable ordering         -> HostedFrontier(queue_factory=...)
+  tie-break without compare  -> PriorityQueue._counter
+  one priority scale         -> frontier/base.py Request.priority docstring
+  recrawl mode               -> CrawlConfig.recrawl, the due_urls seeding block
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+A. RUN 1 FOUND 27 PAGES, RUN 2 FOUND 10.
+   Conditional GET worked perfectly and destroyed the crawl. A 304 has no body,
+   so the 304 branch had no links to follow, so discovery stopped dead at the
+   first cached page. Caching and link discovery are in direct tension.
+   Fixed by storing outlinks in the freshness record and re-pushing them on a
+   304. This changed the store's design, not just its code.
+   LESSON: a feature that works can still break the system. Measure coverage,
+   not just the feature.
+
+B. bytes_saved_by_304 WAS COMPUTED AS `known.checks and 0 or 0`.
+   Which is zero, always. Written while reaching for a number the store did not
+   yet have. Fixed by recording body_bytes in the freshness row so the saving
+   is a real measurement rather than a placeholder.
+   LESSON: if the number is not available, do not write an expression that
+   produces a plausible-looking zero.
+
+C. GENERATED PAGES HAD NO VALIDATORS, so run 2 still downloaded 131KB of the
+   210KB total and conditional GET looked barely worth having. Generated does
+   not mean uncacheable - the bytes are deterministic in n, so the ETag is too.
+   LESSON: a demo that undersells a real technique is as misleading as one that
+   oversells it.
+
+D. RECRAWL PRIORITIES WERE UNIX TIMESTAMPS; LINK PRIORITIES WERE DEPTHS.
+   Both went into the same heap. Every discovered link outranked every overdue
+   page by a factor of a billion, so a recrawl abandoned its own work the
+   instant it found a link. Found while trying to demonstrate the heap.
+   Fixed by defining priority in one unit and documenting it on the field.
+   LESSON: a priority queue is only as coherent as the scale its producers
+   agree on, and nothing checks that for you.
+
+E. A MEASUREMENT ERROR THAT LOOKED LIKE A BUG.
+   Comparing FIFO against the heap on recrawl ordering gave different answers,
+   and the heap looked wrong. It was not: the FIFO run had re-recorded every
+   page it fetched, pushing next_due later, so the heap run started from a
+   different schedule. The comparison mutated the thing being compared.
+   Fixed by giving each ordering its own copy of the store.
+   LESSON: when a benchmark writes to the state it reads, it is not a benchmark.
+
+F. COULD NOT DEMONSTRATE THE HEAP BEATING FIFO AT CRAWL LEVEL.
+   Not a bug - a fact. Every source of work in this crawl is known before the
+   workers start, and priority equals depth, so arrival order already is
+   priority order. Rather than rig a corpus to manufacture a difference, the
+   tests demonstrate the divergence at the frontier level, where it is real,
+   and the docs state the condition under which it matters.
+   LESSON: report the honest result. A rigged demo teaches the wrong lesson
+   about when to reach for the tool.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  uv run pytest tests/test_stage08_freshness.py -q     -> 17 passed
+  uv run minicrawl http://127.0.0.1:8081/ --sitemaps --freshness fresh.sqlite3
+
+Three successive runs against the same freshness store:
+
+  run 1: 27 pages   0 x 304   210,556 bytes downloaded   coverage complete
+  run 2: 29 pages  26 x 304   131,813 bytes downloaded   coverage complete
+  run 3: 29 pages  28 x 304         186 bytes downloaded coverage complete
+
+186 bytes on the third pass, and that is /volatile - the only page that
+actually changed. Coverage stays complete on every run, which is the assertion
+that the 304-blindness bug is fixed.
+
+Sitemaps: /orphan is found with --sitemaps and unreachable without it, at any
+depth.
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+WORKS   sitemap seeding incl. index recursion
+        conditional GET with link-graph preservation
+        adaptive per-page recrawl scheduling
+        pluggable frontier ordering, all priorities on one scale
+
+KNOWN   one process owns the frontier; there is no way to add a second machine
+WRONG   or even a second process to a running crawl        -> stage 9
+        no comparison against a real framework yet         -> stage 10

@@ -18,9 +18,11 @@ import time
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
-from . import extract, fetch, render as render_mod, robots as robots_mod
+from . import extract, fetch, render as render_mod, robots as robots_mod, sitemap as sitemap_mod
 from .dedup import DuplicateIndex, Verdict
-from .frontier import HostedFrontier, Request, SqliteFrontier
+from .freshness import FreshnessStore
+from .frontier import HostedFrontier, PriorityQueue, Request, SqliteFrontier
+from .frontier.memory import MemoryFrontier
 from .normalize import normalize
 from .politeness import Politeness
 from .traps import TrapGuard
@@ -53,6 +55,11 @@ class CrawlConfig:
     # -- stage 7 --
     renderer: object | None = None      # a render.Renderer, or None for no browser
     render_everything: bool = False     # control case: skip triage, render all
+    # -- stage 8 --
+    freshness: FreshnessStore | None = None   # validators + recrawl schedule
+    read_sitemaps: bool = False               # a second, independent seed source
+    priority_frontier: bool = False           # heap ordering instead of FIFO
+    recrawl: bool = False                     # seed from what is due, not from URLs
 
 
 @dataclass
@@ -70,6 +77,7 @@ class Page:
     words: int = 0
     rendered: bool = False
     render_reasons: list[str] = field(default_factory=list)
+    from_cache: bool = False        # answered 304 — no body, no reparse
 
 
 @dataclass(slots=True)
@@ -92,6 +100,10 @@ class CrawlResult:
     rendered_pages: list[str] = field(default_factory=list)
     render_seconds: float = 0.0
     fetch_seconds: float = 0.0
+    sitemap_urls: list[str] = field(default_factory=list)
+    not_modified: list[str] = field(default_factory=list)
+    bytes_downloaded: int = 0
+    bytes_saved_by_304: int = 0
     requeued_on_resume: int = 0
     already_done_on_start: int = 0
 
@@ -163,12 +175,31 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
         result.requeued_on_resume = frontier.recovered
         result.already_done_on_start = frontier.done_count
     else:
-        frontier = HostedFrontier(politeness)
+        frontier = HostedFrontier(
+            politeness,
+            queue_factory=PriorityQueue if config.priority_frontier else MemoryFrontier)
 
     seeds = [u for u in (canonical(s) for s in config.seeds) if u]
-    for seed in seeds:
-        frontier.push_nowait(Request(url=seed, depth=0))
     seed_hosts = {host_of(s) for s in seeds}
+
+    if config.recrawl and config.freshness is not None:
+        # Recrawl mode: the URLs are not given, they are *chosen* — everything
+        # the schedule says is due, most overdue first. This is the case where
+        # frontier ordering finally earns its keep: with a page budget, arrival
+        # order fetches whichever URL happened to be enqueued first, while the
+        # heap fetches the pages that have gone longest without a look.
+        now = time.time()
+        for url in config.freshness.due_urls():
+            record = config.freshness.get(url)
+            if config.same_host and host_of(url) not in seed_hosts:
+                continue
+            # Seconds until due: negative for overdue, and on the same scale as
+            # every other priority in the system.
+            overdue = (record.next_due - now) if record else 0.0
+            frontier.push_nowait(Request(url=url, depth=0, priority=overdue))
+    else:
+        for seed in seeds:
+            frontier.push_nowait(Request(url=seed, depth=0))
     client = fetch.make_client(timeout=config.timeout, user_agent=config.user_agent)
     robots = RobotsCache(client, config.robots_agent, politeness) \
         if config.respect_robots else None
@@ -204,9 +235,12 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                 result.peak_in_flight = max(result.peak_in_flight, in_flight)
                 result.peak_in_flight_per_host[host] = max(
                     result.peak_in_flight_per_host.get(host, 0), per_host_in_flight[host])
+                validators = (config.freshness.validators(request.url)
+                              if config.freshness else {})
                 try:
-                    got = await fetch.fetch(client, request.url)
+                    got = await fetch.fetch(client, request.url, headers=validators or None)
                     result.fetch_seconds += got.elapsed
+                    result.bytes_downloaded += len(got.body)
                 finally:
                     in_flight -= 1
                     per_host_in_flight[host] -= 1
@@ -214,6 +248,35 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                 page = Page(url=request.url, final_url=got.final_url, status=got.status,
                             depth=request.depth, title="", n_links=0,
                             elapsed=got.elapsed, error=got.error)
+
+                if got.not_modified:
+                    # The cheapest possible answer: unchanged, and no body sent.
+                    # Nothing to parse and nothing to dedup — but also no links,
+                    # and a crawler that discovers only by parsing goes blind the
+                    # moment its cache starts working. The remembered outlinks
+                    # are what keep discovery alive across a cached response.
+                    page.from_cache = True
+                    known = config.freshness.get(request.url) if config.freshness else None
+                    if config.freshness:
+                        before = config.freshness.bytes_saved
+                        config.freshness.record(request.url, not_modified=True)
+                        result.bytes_saved_by_304 += (config.freshness.bytes_saved - before)
+                    if known and request.depth < config.max_depth:
+                        for link in known.links:
+                            if config.same_host and host_of(link) not in seed_hosts:
+                                continue
+                            if frontier.known(link):
+                                continue
+                            if config.traps and config.traps.admit(link):
+                                continue
+                            await frontier.push(
+                                Request(link, request.depth + 1, via=request.url,
+                                        priority=request.depth + 1))
+                    page.n_links = len(known.links) if known else 0
+                    result.not_modified.append(request.url)
+                    result.pages.append(page)
+                    _emit(config, page)
+                    continue
 
                 # We followed redirects to get here, so we already hold the
                 # content of `final_url`. Record it as seen or it gets queued
@@ -251,6 +314,16 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                     page.title, page.n_links = found.title, len(found.links)
                     page.words = len(found.main_text.split())
 
+                    if config.freshness is not None:
+                        from .dedup import content_hash
+                        config.freshness.record(
+                            request.url,
+                            etag=got.headers.get("etag"),
+                            last_modified=got.headers.get("last-modified"),
+                            content_hash=content_hash(found.main_text),
+                            body_bytes=len(got.body),
+                            links=[u for u in (canonical(l) for l in found.links) if u])
+
                     duplicate = False
                     if config.dedup is not None:
                         canonical_url = (canonical(found.canonical)
@@ -285,12 +358,26 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                             if config.traps and config.traps.admit(link):
                                 continue
                             await frontier.push(
-                                Request(link, request.depth + 1, via=request.url))
+                                Request(link, request.depth + 1, via=request.url,
+                                        priority=request.depth + 1))
 
                 result.pages.append(page)
                 _emit(config, page)
             finally:
                 await frontier.release(request.url, done=handled)
+
+    if config.read_sitemaps:
+        # A second, independent source of seeds. Sitemap URLs are pushed at
+        # priority -1 so that a priority frontier visits them before anything
+        # discovered by following links: the site told us these matter.
+        for url in await _sitemap_seeds(client, seeds, robots, canonical):
+            if not config.same_host or host_of(url) in seed_hosts:
+                # Recorded whether or not the push is new: a sitemap URL that
+                # is already queued was still found here, and reporting only
+                # the new ones makes sitemaps look like they did less than
+                # they did.
+                result.sitemap_urls.append(url)
+                await frontier.push(Request(url, depth=0, priority=-1.0))
 
     try:
         await asyncio.gather(*(worker() for _ in range(max(1, config.workers))))
@@ -310,6 +397,39 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
     result.hosts_seen = frontier.host_count
     result.finished = time.perf_counter()
     return result
+
+
+async def _sitemap_seeds(client, seeds, robots, canonical) -> list[str]:
+    """Follow sitemap indexes to their leaves and return the page URLs.
+
+    Sitemaps are advertised by robots.txt, so the robots fetch has already
+    found them. Where it has not, /sitemap.xml is the conventional guess and
+    costs one request per host to rule out.
+    """
+    pending: list[tuple[str, int]] = []
+    if robots is not None and robots.sitemaps:
+        pending = [(u, 0) for u in robots.sitemaps]
+    else:
+        pending = [(f"{urlsplit(s).scheme}://{urlsplit(s).netloc}/sitemap.xml", 0)
+                   for s in seeds]
+
+    found: list[str] = []
+    visited: set[str] = set()
+    while pending:
+        url, depth = pending.pop()
+        if url in visited or depth > sitemap_mod.MAX_INDEX_DEPTH:
+            continue
+        visited.add(url)
+        got = await fetch.fetch(client, url)
+        if not got.ok:
+            continue
+        parsed = sitemap_mod.parse(got.body)
+        for entry in parsed.entries:
+            if parsed.is_index:
+                pending.append((entry.url, depth + 1))
+            elif (normalised := canonical(entry.url)):
+                found.append(normalised)
+    return found
 
 
 def _emit(config: CrawlConfig, page: Page) -> None:

@@ -23,16 +23,17 @@ from .scheduling import SchedulingFrontier, host_of
 
 
 class HostedFrontier(SchedulingFrontier):
-    def __init__(self, politeness: Politeness):
+    def __init__(self, politeness: Politeness, queue_factory=MemoryFrontier):
         super().__init__(politeness)
         self._seen: set[str] = set()
-        self._queues: dict[str, MemoryFrontier] = {}
+        self._queue_factory = queue_factory
+        self._queues: dict[str, object] = {}
 
     def _add(self, request: Request) -> bool:
         host = host_of(request.url)
         queue = self._queues.get(host)
         if queue is None:
-            queue = self._queues[host] = MemoryFrontier(seen=self._seen)
+            queue = self._queues[host] = self._queue_factory(seen=self._seen)
         return queue.push(request)
 
     def _take(self, host: str) -> Request | None:

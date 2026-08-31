@@ -127,6 +127,12 @@ def build() -> dict:
         "non_html": [p for p, v in spec.PAGES.items() if "raw_bytes" in v],
         "sitemaps": {"index": "/sitemap.xml", "urls": sorted(
             {u for k, v in spec.SITEMAPS.items() if k != "/sitemap.xml" for u in v})},
+        # Listed in a sitemap and linked from nowhere. A link-following crawl
+        # cannot reach it at any depth.
+        "sitemap_only": sorted(p for p, v in spec.PAGES.items()
+                               if "sitemap_only" in v.get("flags", [])),
+        "always_changes": sorted(p for p, v in spec.PAGES.items()
+                                 if "always_changes" in v.get("flags", [])),
         "traps": spec.TRAPS,
         # THE headline assertion: a polite, same-host crawl from "/" finds exactly this.
         "expected_pages": expected_pages(primary),
@@ -134,6 +140,10 @@ def build() -> dict:
         # its only inbound link is written by JavaScript.
         "expected_pages_rendered": sorted(
             expected_pages(primary) + spec.PAGES["/js-only"]["js_links"]),
+        # With sitemaps read as a second seed source, the orphan appears too.
+        "expected_pages_with_sitemaps": sorted(
+            set(expected_pages(primary))
+            | {p for p, v in spec.PAGES.items() if "sitemap_only" in v.get("flags", [])}),
     }
 
 

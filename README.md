@@ -32,7 +32,7 @@ is verified against the ground-truth manifest.
 | 5 ✅ | `normalize.py`, `traps.py`, `frontier/sqlite.py` | Canonicalisation, dedup, resumable crawls, trap defence |
 | 6 ✅ | `dedup.py`, `main_text()` | Boilerplate removal, exact + near-dup (simhash), canonical |
 | 7 ✅ | `render.py` | Escalating to Playwright *only* for pages that need it |
-| 8 | `freshness.py`, sitemaps | Conditional GET, recrawl scheduling, priority frontier |
+| 8 ✅ | `freshness.py`, `sitemap.py`, `PriorityQueue` | Conditional GET, recrawl scheduling, priority frontier |
 | 9 | `frontier/redis.py` | Distributed coordination, host-sharded workers |
 | 10 | `scrapy_port/` | What the framework actually buys you |
 
@@ -58,6 +58,9 @@ uv run minicrawl http://127.0.0.1:8081/ --frontier crawl.sqlite3 --verify
 
 # escalate to a browser only where triage says it would help (1 page in 26)
 uv run minicrawl http://127.0.0.1:8081/ --render
+
+# sitemaps + conditional GET: run it three times and watch the bytes vanish
+uv run minicrawl http://127.0.0.1:8081/ --sitemaps --freshness fresh.sqlite3
 
 uv run pytest -q
 ```

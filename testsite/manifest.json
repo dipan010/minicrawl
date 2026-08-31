@@ -33,6 +33,7 @@
         "/slow",
         "/js-only",
         "/etag",
+        "/volatile",
         "/private/secret",
         "/private/public-corner",
         "/gen/1",
@@ -321,6 +322,32 @@
         "conditional_get"
       ]
     },
+    "/volatile": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Volatile",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "always_changes"
+      ]
+    },
+    "/orphan": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Orphan",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "sitemap_only"
+      ]
+    },
     "/private/secret": {
       "status": 200,
       "content_type": "text/html",
@@ -512,9 +539,16 @@
       "/docs/one",
       "/docs/sub/three",
       "/docs/two",
-      "/etag"
+      "/etag",
+      "/orphan"
     ]
   },
+  "sitemap_only": [
+    "/orphan"
+  ],
+  "always_changes": [
+    "/volatile"
+  ],
   "traps": {
     "/loop/1": "redirect loop \u2014 fixed in stage 5 (normalise + seen-set on redirects)",
     "/gen/1": "unbounded generator \u2014 fixed in stage 5 (byte cap + path-depth cap)",
@@ -539,7 +573,8 @@
     "/js-only",
     "/private/public-corner",
     "/slow",
-    "/variants"
+    "/variants",
+    "/volatile"
   ],
   "expected_pages_rendered": [
     "/",
@@ -561,6 +596,30 @@
     "/js-only/child",
     "/private/public-corner",
     "/slow",
-    "/variants"
+    "/variants",
+    "/volatile"
+  ],
+  "expected_pages_with_sitemaps": [
+    "/",
+    "/a",
+    "/b",
+    "/c",
+    "/docs/",
+    "/docs/one",
+    "/docs/sub/three",
+    "/docs/two",
+    "/dup/canonical-source",
+    "/dup/exact-1",
+    "/dup/exact-2",
+    "/dup/near-1",
+    "/dup/near-2",
+    "/etag",
+    "/hosts",
+    "/js-only",
+    "/orphan",
+    "/private/public-corner",
+    "/slow",
+    "/variants",
+    "/volatile"
   ]
 }

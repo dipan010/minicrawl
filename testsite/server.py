@@ -9,7 +9,9 @@ host:port, so 127.0.0.1:8081 and 127.0.0.1:8082 are different hosts.
 """
 from __future__ import annotations
 
+import hashlib
 import html
+import itertools
 import sys
 import threading
 import time
@@ -17,8 +19,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import spec
 
-ETAG = '"v1-etag"'
 LAST_MODIFIED = "Wed, 12 Feb 2025 10:00:00 GMT"
+VOLATILE_COUNTER = itertools.count()
+
+
+def etag_for(body: bytes) -> str:
+    """A real ETag: derived from the bytes, so it changes exactly when they do."""
+    return '"%s"' % hashlib.sha1(body).hexdigest()[:16]
 
 
 def variant_hrefs(page: dict) -> list[str]:
@@ -136,18 +143,14 @@ class Handler(BaseHTTPRequestHandler):
         if "raw_bytes" in page:
             return self.send(200, page["raw_bytes"], page["content_type"])
 
-        if page.get("etag"):
-            if self.headers.get("If-None-Match") == ETAG:
-                self.send_response(304)
-                self.send_header("ETag", ETAG)
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-                return
-            body = render_page(key, port).encode()
-            return self.send(200, body, "text/html; charset=utf-8",
-                             {"ETag": ETAG, "Last-Modified": LAST_MODIFIED})
+        body = render_page(key, port).encode()
+        if page.get("volatile"):
+            body = body.replace(b"</body>",
+                                b"<p>request %d</p></body>" % next(VOLATILE_COUNTER))
 
-        self.send(200, render_page(key, port).encode(), "text/html; charset=utf-8")
+        # Every HTML page is conditionally requestable, which is what real
+        # servers do and what makes a second crawl cheap.
+        self.conditional(body)
 
     def gen(self, path: str, port: int):
         """An unbounded chain of fat pages. A crawler with no caps never finishes."""
@@ -161,8 +164,22 @@ class Handler(BaseHTTPRequestHandler):
                 f"<h1>Generated {n}</h1>{filler}"
                 f'<nav><a href="{spec.GEN_PREFIX}{n + 1}">next</a>'
                 f'<a href="{spec.GEN_PREFIX}{n * 2 + 1}">branch</a></nav>'
-                "</body></html>")
-        self.send(200, body.encode(), "text/html; charset=utf-8")
+                "</body></html>").encode()
+        # Generated does not mean uncacheable: the bytes are deterministic in n,
+        # so the validator is too.
+        self.conditional(body)
+
+    def conditional(self, body: bytes):
+        """Send HTML, or a 304 if the client already has these exact bytes."""
+        etag = etag_for(body)
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send(200, body, "text/html; charset=utf-8",
+                  {"ETag": etag, "Last-Modified": LAST_MODIFIED})
 
 
 def serve(ports=spec.HOST_PORTS, verbose=False):

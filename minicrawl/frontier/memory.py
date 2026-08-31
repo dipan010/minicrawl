@@ -14,6 +14,8 @@ of these per host and shares a single seen-set across them all.
 """
 from __future__ import annotations
 
+import heapq
+import itertools
 from collections import deque
 
 from .base import Request
@@ -42,6 +44,47 @@ class MemoryFrontier:
 
     def __len__(self) -> int:
         return len(self._queue)
+
+    @property
+    def seen_count(self) -> int:
+        return len(self._seen)
+
+
+class PriorityQueue:
+    """Stage 8 — the same frontier, ordered by a score instead of by arrival.
+
+    Stage 2 said a heap instead of a deque turns breadth-first crawling into
+    priority crawling, and that nothing else has to change. This class is that
+    claim being cashed: identical interface, six lines of difference, and the
+    crawl goes from "whatever was found first" to "whatever matters most".
+
+    The counter breaks ties and keeps the sort stable, which also stops heapq
+    from ever comparing two Request objects — they are not ordered, and without
+    the counter a priority tie would raise.
+    """
+
+    def __init__(self, seen: set[str] | None = None) -> None:
+        self._heap: list[tuple[float, int, Request]] = []
+        self._seen: set[str] = seen if seen is not None else set()
+        self._counter = itertools.count()
+
+    def push(self, request: Request) -> bool:
+        if request.url in self._seen:
+            return False
+        self._seen.add(request.url)
+        heapq.heappush(self._heap, (request.priority, next(self._counter), request))
+        return True
+
+    def pop(self) -> Request | None:
+        return heapq.heappop(self._heap)[2] if self._heap else None
+
+    def requeue(self, request: Request) -> None:
+        """Return an already-seen request. It keeps its priority, so a requeued
+        request is not silently promoted to the front."""
+        heapq.heappush(self._heap, (request.priority, next(self._counter), request))
+
+    def __len__(self) -> int:
+        return len(self._heap)
 
     @property
     def seen_count(self) -> int:
