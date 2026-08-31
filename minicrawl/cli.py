@@ -103,6 +103,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="SQLite freshness store; enables conditional GET across runs")
     ap.add_argument("--priority", action="store_true",
                     help="order the frontier by priority instead of arrival")
+    ap.add_argument("--redis", metavar="URL", nargs="?", const="redis://127.0.0.1:6379/0",
+                    help="share the frontier across processes via Redis")
+    ap.add_argument("--redis-prefix", default="mc",
+                    help="key prefix, so two crawls can share one Redis")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--verify", action="store_true",
                     help="diff the crawl against testsite/manifest.json")
@@ -117,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         traps=None if args.no_traps else TrapGuard(),
         renderer=PlaywrightRenderer() if args.render else None,
         read_sitemaps=args.sitemaps, priority_frontier=args.priority,
+        redis_url=args.redis, redis_prefix=args.redis_prefix,
         freshness=FreshnessStore(args.freshness) if args.freshness else None,
         on_page=None if args.quiet else print_page,
     )
@@ -128,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
     if result.requeued_on_resume or result.already_done_on_start:
         print(f"  resumed: {result.already_done_on_start} pages already done, "
               f"{result.requeued_on_resume} requeued from a dead worker")
+    if args.redis:
+        print(f"  shared frontier at {args.redis} under prefix {args.redis_prefix!r}")
     print(f"  {len(result.pages)} pages, {len(result.errors)} errors, "
           f"{len(result.blocked_by_robots)} blocked by robots.txt, "
           f"{result.duration:.2f}s, {result.worker_seconds_waiting:.1f} worker-s waiting "

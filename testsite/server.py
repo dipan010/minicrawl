@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import html
 import itertools
+import socket
 import sys
 import threading
 import time
@@ -182,9 +183,20 @@ class Handler(BaseHTTPRequestHandler):
                   {"ETag": etag, "Last-Modified": LAST_MODIFIED})
 
 
-def serve(ports=spec.HOST_PORTS, verbose=False):
+def is_serving(port: int) -> bool:
+    """True if something is already accepting on this port."""
+    with socket.socket() as probe:
+        probe.settimeout(0.2)
+        return probe.connect_ex(("127.0.0.1", port)) == 0
+
+
+def serve(ports=spec.HOST_PORTS, verbose=False, skip_busy=False):
+    """Start the corpus. With skip_busy, ports already served are left alone —
+    the corpus is a fixture, and two things wanting it should share one."""
     servers = []
     for port in ports:
+        if skip_busy and is_serving(port):
+            continue
         httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
         httpd.port, httpd.verbose = port, verbose
         httpd.daemon_threads = True

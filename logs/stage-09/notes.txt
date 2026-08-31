@@ -1,0 +1,173 @@
+STAGE 9 - DISTRIBUTED FRONTIER
+tag: stage-09
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Run ONE crawl across several independent processes, preserving every
+guarantee the single-process crawler had. Not throughput -- correctness under
+concurrency that spans process boundaries.
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. Started Redis in a pinned container (docker run redis:7-alpine).
+    Added `redis` as an optional extra, `fakeredis` as a dev dependency so
+    the logic tests need no container.
+ 2. Refactored Politeness to answer seconds_until_ready(host) -- a DURATION
+    instead of an absolute time. Forced by the design: a shared clock cannot
+    use time.monotonic(), and the scheduler should not have to know.
+ 3. Added _pending_total() / _active_total() hooks to SchedulingFrontier so
+    termination can count work owned by other processes.
+ 4. Added a poll_interval hook, None for local frontiers.
+ 5. Wrote RedisPoliteness (shared per-host clock, wall clock).
+ 6. Wrote RedisFrontier: SET for dedup, ZSET per host for the queue,
+    SET NX PX lease for the one-per-host guard, counters for termination,
+    and reclaim() for crash recovery.
+ 7. Wired redis_url into CrawlConfig and the CLI.
+ 8. Wrote scripts/distributed_demo.py: parent serves the corpus, N spawned
+    children crawl it, parent checks the three guarantees.
+ 9. Ran it. 3 processes, 26 requests, 26 distinct URLs, complete coverage,
+    politeness floor respected.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+WHAT A SINGLE PROCESS WAS GIVING US FOR FREE
+  Three guarantees, all of them implemented as "a Python object only this
+  process can see":
+     dedup           a set()
+     one per host    a set()
+     politeness      a dict of monotonic timestamps
+  None of them survives a second process. This is the whole stage.
+
+ATOMICITY: THE OPERATION IS THE DECISION
+  SADD returns 1 if the member was new. That return value IS the dedup
+  decision, computed atomically inside Redis. The tempting alternative --
+  SISMEMBER then SADD -- is two round trips with a gap, and in that gap two
+  workers both conclude they were first.
+  Same shape for the host guard: SET key NX PX is a claim and a test in one
+  operation. Checking existence and then setting is a race.
+
+LEASES INSTEAD OF LOCKS
+  A lock held by a dead process is held forever. A LEASE expires. The TTL is
+  what makes the one-per-host guard safe against a worker that crashes,
+  hangs, or is killed -- none of which give it a chance to release anything.
+
+  Lease duration is a real trade-off: too short and a slow-but-alive worker
+  loses its host mid-request; too long and a crashed worker blocks that host
+  until the TTL runs out.
+
+CRASH RECOVERY NEEDS EVIDENCE THAT OUTLIVES THE LEASE
+  If the lease and the request expired together, a crashed worker would take
+  its page with it and the crawl would report success. So:
+     lease:<host>   HAS a TTL   -- the claim
+     proc:<host>    has NO TTL  -- the evidence
+  A proc with no lease is work whose owner is gone. reclaim() sweeps for
+  exactly that pattern and requeues it. Every crawl sweeps at startup.
+
+  This is the same failure class as stage 6's `finally` recording work that
+  never happened. Missing pages look like nothing at all, which is why this
+  project keeps producing it and why the manifest keeps catching it.
+
+SHARED CLOCKS MUST BE WALL CLOCKS
+  time.monotonic() has no shared epoch. Its values are meaningless outside
+  the process that read them, so a shared politeness clock has to use
+  time.time().
+  Consequence: clock skew between machines makes the crawler slightly ruder
+  or slightly slower. That is the honest cost, and it is far cheaper than a
+  monotonic clock being silently wrong.
+
+  Rather than special-case this, the Politeness INTERFACE changed: it now
+  answers a duration (seconds_until_ready) instead of an absolute time. Each
+  implementation keeps its clock wherever it likes and the scheduler stopped
+  having an opinion.
+
+DISTRIBUTED TERMINATION
+  "pending == 0 and active == 0" still holds, but both counts must be global.
+  A worker in ANOTHER process holding a request may be about to enqueue more.
+  Local frontiers answer from their own integers; Redis answers from counters.
+
+CONDITION VARIABLES DO NOT CROSS PROCESSES
+  A local frontier wakes its workers when someone pushes. Nothing wakes a
+  process when a different process pushes, so a shared frontier has to poll.
+  poll_interval exists only for that and is None everywhere else, so the local
+  frontiers stay exactly as event-driven as they were.
+
+ZSET ORDERING SEMANTICS
+  A sorted set breaks equal scores LEXICOGRAPHICALLY, not by insertion. Left
+  alone, that silently replaces FIFO-within-a-priority with alphabetical
+  order. The member is prefixed with a zero-padded arrival sequence
+  (from INCR) so that ties resolve by arrival.
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  atomic dedup            -> RedisFrontier._add(), the SADD return value
+  host lease              -> RedisFrontier._take(), SET NX PX
+  lease release           -> RedisFrontier._complete()
+  evidence outliving lease-> the proc:<host> key (no TTL)
+  crash recovery sweep    -> RedisFrontier.reclaim()
+  recovery at startup     -> crawler.crawl(), the redis branch
+  shared per-host clock   -> RedisPoliteness (wall clock)
+  duration not timestamp  -> Politeness.seconds_until_ready();
+                             SchedulingFrontier._take_ready()
+  global termination      -> _pending_total() / _active_total() and the
+                             Redis pending/active counters
+  polling only when needed-> SchedulingFrontier.poll_interval (None locally)
+  FIFO within a priority  -> RedisFrontier._member(), the seq prefix
+  process isolation proof -> scripts/distributed_demo.py (spawn context)
+  corpus shared not copied -> testsite.server.serve(skip_busy=True)
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+A. THE DEMO COULD NOT BIND THE CORPUS PORTS when run from inside the test
+   suite, because the session fixture already had them. "Address already in
+   use", and the multi-process test failed on infrastructure rather than on
+   anything it was testing.
+   Fixed by adding serve(skip_busy=True): a port already being served is left
+   alone. The corpus is a fixture, and two things that want it should share
+   one rather than fight over the socket.
+   LESSON: a test that starts its own copy of a shared fixture is a test that
+   only passes when run alone.
+
+Nothing else broke, and that is worth recording as evidence rather than as
+luck. The interface work done at stages 2, 4 and 5 meant this stage added a
+third storage backend without touching the scheduler, the crawl loop, or any
+earlier test. The only edits outside the new file were two new hooks and one
+interface change -- and that change (durations instead of timestamps) was
+demanded by the domain, not by Redis.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  docker run -d --rm --name minicrawl-redis -p 6379:6379 redis:7-alpine
+  uv sync --extra distributed
+  uv run pytest tests/test_stage09_distributed.py -q       -> 12 passed
+  uv run python scripts/distributed_demo.py 3
+
+  3 processes, 6.6s
+    process 0:  9 pages fetched
+    process 1:  7 pages fetched
+    process 2: 10 pages fetched
+    fetched      26 requests, 26 distinct URLs
+    duplicates   0            <-- dedup held across processes
+    coverage     complete     <-- nothing lost in the split
+    politeness   26 requests to :8081 in 6.6s; floor 5.0s -> held
+
+Ten of the twelve tests run on fakeredis and need no container. The two that
+prove things about separate processes skip without a real Redis.
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+WORKS   a single crawl split across N OS processes with no shared memory
+        dedup, one-request-per-host and politeness all hold globally
+        work abandoned by a dead process is reclaimed
+        three frontier backends behind one unchanged scheduler
+
+KNOWN   no comparison against a real framework yet          -> stage 10
+WRONG   reclaim() only runs at startup, so a crash mid-crawl is recovered by
+        the NEXT run rather than by the surviving workers -- correct, but a
+        production crawler would sweep periodically

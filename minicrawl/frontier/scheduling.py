@@ -60,6 +60,19 @@ class SchedulingFrontier(ABC):
         """Has this URL ever been queued? Lets callers avoid spending a trap
         budget on a URL that would be deduplicated away anyway."""
 
+    def _pending_total(self) -> int:
+        """Work queued anywhere. A shared frontier must count other processes'."""
+        return self._pending
+
+    def _active_total(self) -> int:
+        """Requests handed out and not yet released, anywhere.
+
+        "The queue is empty" is not "the crawl is done" — a worker still
+        holding a request may be about to enqueue more. Across processes that
+        worker may not even be in this process.
+        """
+        return self._active
+
     def _complete(self, url: str) -> None:
         """Durable frontiers record this so a resumed crawl skips it."""
 
@@ -115,7 +128,8 @@ class SchedulingFrontier(ABC):
         """
         async with self._cond:
             while True:
-                if self._closed or (self._pending == 0 and self._active == 0):
+                if self._closed or (self._pending_total() == 0
+                                    and self._active_total() == 0):
                     self._cond.notify_all()
                     return None
 
@@ -133,19 +147,27 @@ class SchedulingFrontier(ABC):
                 if wait_for is not None:
                     self.worker_seconds_waiting += time.monotonic() - started
 
+    # A shared frontier cannot be woken by another process's push, so it needs
+    # to look again on its own. Local frontiers set this to None and are woken
+    # by the condition variable instead.
+    poll_interval: float | None = None
+
     def _take_ready(self) -> tuple[Request | None, float | None]:
-        now = time.monotonic()
         soonest: float | None = None
         for host in self._hosts_with_work():
             if host in self._in_flight:
                 continue
-            ready_at = self._politeness.ready_at(host)
-            if ready_at > now:
-                delay = ready_at - now
-                soonest = delay if soonest is None else min(soonest, delay)
+            wait = self._politeness.seconds_until_ready(host)
+            if wait > 0:
+                soonest = wait if soonest is None else min(soonest, wait)
                 continue
             request = self._take(host)
             if request is None:
+                # Either the queue drained under us or another process holds
+                # this host. Neither is knowable without looking again.
+                if self.poll_interval is not None:
+                    soonest = (self.poll_interval if soonest is None
+                               else min(soonest, self.poll_interval))
                 continue
             self._in_flight.add(host)
             self._issued[request.url] = request

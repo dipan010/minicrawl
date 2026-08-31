@@ -45,6 +45,17 @@ class Politeness:
         """Monotonic time at which this host may be hit again."""
         return self._next_allowed.get(host, 0.0)
 
+    def seconds_until_ready(self, host: str) -> float:
+        """How long before this host may be hit again. 0 means now.
+
+        The scheduler asks in *durations*, not absolute times, so that a
+        politeness implementation is free to keep its clock wherever it likes.
+        A process-local one uses time.monotonic(); a shared one has to use the
+        wall clock, because monotonic clocks are not comparable across
+        machines — or even across processes on the same machine.
+        """
+        return max(0.0, self.ready_at(host) - time.monotonic())
+
     def mark_used(self, host: str) -> None:
         """Start the clock. Called when a request *begins*, not when it ends:
         Crawl-delay is the gap between request starts, so a slow response does

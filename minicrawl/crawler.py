@@ -60,6 +60,9 @@ class CrawlConfig:
     read_sitemaps: bool = False               # a second, independent seed source
     priority_frontier: bool = False           # heap ordering instead of FIFO
     recrawl: bool = False                     # seed from what is due, not from URLs
+    # -- stage 9 --
+    redis_url: str | None = None              # share the frontier across processes
+    redis_prefix: str = "mc"
 
 
 @dataclass
@@ -170,7 +173,20 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
 
     result = CrawlResult(started=time.perf_counter(), workers=config.workers)
 
-    if config.frontier_path:
+    if config.redis_url:
+        # The politeness clock has to move too. A per-process clock means two
+        # crawlers each politely hit the same origin at the full rate.
+        from .frontier import RedisFrontier, RedisPoliteness
+        import redis as redis_lib
+        client = redis_lib.Redis.from_url(config.redis_url, decode_responses=True)
+        politeness = RedisPoliteness(client, prefix=config.redis_prefix,
+                                     default_delay=config.default_delay,
+                                     min_delay=config.min_delay,
+                                     max_delay=config.max_delay)
+        frontier = RedisFrontier(politeness, prefix=config.redis_prefix, client=client)
+        # Sweep for work abandoned by a process that died holding it.
+        result.requeued_on_resume = frontier.reclaim()
+    elif config.frontier_path:
         frontier = SqliteFrontier(politeness, config.frontier_path)
         result.requeued_on_resume = frontier.recovered
         result.already_done_on_start = frontier.done_count

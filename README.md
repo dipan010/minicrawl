@@ -33,7 +33,7 @@ is verified against the ground-truth manifest.
 | 6 ✅ | `dedup.py`, `main_text()` | Boilerplate removal, exact + near-dup (simhash), canonical |
 | 7 ✅ | `render.py` | Escalating to Playwright *only* for pages that need it |
 | 8 ✅ | `freshness.py`, `sitemap.py`, `PriorityQueue` | Conditional GET, recrawl scheduling, priority frontier |
-| 9 | `frontier/redis.py` | Distributed coordination, host-sharded workers |
+| 9 ✅ | `frontier/redis.py` | Distributed coordination, leases, shared politeness |
 | 10 | `scrapy_port/` | What the framework actually buys you |
 
 ## Run it
@@ -61,6 +61,11 @@ uv run minicrawl http://127.0.0.1:8081/ --render
 
 # sitemaps + conditional GET: run it three times and watch the bytes vanish
 uv run minicrawl http://127.0.0.1:8081/ --sitemaps --freshness fresh.sqlite3
+
+# one crawl split across three processes, coordinating only through Redis
+docker run -d --rm --name minicrawl-redis -p 6379:6379 redis:7-alpine
+uv sync --extra distributed
+uv run python scripts/distributed_demo.py 3
 
 uv run pytest -q
 ```
