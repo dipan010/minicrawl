@@ -1,0 +1,138 @@
+STAGE 4 - THE WORKER POOL
+tag: stage-04
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Run N workers concurrently WITHOUT weakening any politeness guarantee from
+stage 3. The measure of success is not speed. It is that speed cannot be
+bought at a host's expense.
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. Identified the failure mode first: eight workers on one shared FIFO all
+    draw from whichever host is at the head, all block on that host's
+    Crawl-delay, and leave every other host idle. Slower AND ruder.
+ 2. Wrote frontier/hosted.py - per-host queues, one in-flight per host, an
+    asyncio.Condition for waking, and a readiness clock.
+ 3. Split Politeness.wait() into ready_at() + mark_used(). This was forced by
+    the design, not chosen: see CONCEPTS.
+ 4. Rewrote crawler.crawl() as asyncio.gather over N worker coroutines.
+ 5. Added instrumentation for the invariant: peak_in_flight and
+    peak_in_flight_per_host.
+ 6. Measured two regimes (one host, three hosts) and wrote structural tests.
+ 7. Renamed a metric that was lying.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+TWO CONSTRAINTS ON DIFFERENT AXES
+  "Go fast" is a constraint across hosts.
+  "Be polite" is a constraint within a host.
+  A single shared queue can express neither correctly, because it has no
+  concept of a host. The queue must become host-aware for both to hold.
+
+HOST-PARTITIONED FRONTIER
+  - one FIFO per host
+  - ONE shared seen-set across all of them, so dedup stays global even though
+    ordering is per-host
+  - at most one in-flight request per host, ever
+  - a worker is handed work only from a host whose delay has elapsed
+  - when nothing is ready, sleep until the EARLIEST host is ready, not on a
+    fixed poll interval
+
+WHY wait() HAD TO BE SPLIT
+  Stage 3's wait() did two things: sleep until ready, then claim the host.
+  Under concurrency that is exactly wrong - a worker that sleeps has given up
+  its chance to serve a DIFFERENT host. Splitting into:
+      ready_at(host)   a question, no side effect
+      mark_used(host)  a claim, side effect only
+  moves the decision from the worker to the scheduler, which is the only place
+  that can see all hosts at once.
+
+CONDITION VARIABLES, NOT POLLING
+  Workers block on asyncio.Condition with a timeout equal to the time until
+  the soonest host is ready. A release, a push or a close wakes them early.
+  Polling would either burn CPU or add latency; this adds neither.
+
+TERMINATION UNDER CONCURRENCY
+  "The queue is empty" is NOT "the crawl is done" - a worker still holding a
+  request may be about to enqueue more. The condition is:
+      pending == 0 AND active == 0
+  Getting this wrong produces either an early exit or a hang.
+
+BUDGET RESERVATION BEFORE THE OPERATION
+  max_pages must be decremented BEFORE the fetch. Check it afterwards and N
+  workers all pass the check on the last slot, overshooting by N pages.
+  asyncio is cooperative - nothing preempts between awaits - so a plain int
+  is sound here without a lock. That is a property of the runtime, and it is
+  worth knowing WHY it holds rather than reaching for a lock reflexively.
+
+CONCURRENCY CEILING = HOST COUNT
+  With one in-flight per host, peak concurrency can never exceed the number of
+  hosts with work. Workers above that number are pure overhead.
+
+METRICS MUST BE NAMED FOR WHAT THEY MEASURE
+  See WHAT BROKE (B).
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  per-host queues            -> frontier/hosted.py HostedFrontier._queues
+  global dedup, local order  -> MemoryFrontier(seen=self._seen) - shared set
+  one in-flight per host     -> HostedFrontier._in_flight, acquire/release
+  readiness clock            -> politeness.ready_at() + _take_ready()
+  claim separated from wait  -> politeness.mark_used()
+  sleep until soonest        -> asyncio.wait_for(cond.wait(), timeout=soonest)
+  termination condition      -> acquire(): pending == 0 and active == 0
+  worker pool                -> crawler.crawl(), asyncio.gather(worker() * N)
+  budget reserved early      -> crawler.worker(), `budget -= 1` before fetch
+  invariant instrumentation  -> CrawlResult.peak_in_flight_per_host
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+A. RuntimeError from Condition.notify_all() called without holding the lock.
+   Seeding the frontier happens before any worker exists, so it took the
+   non-async path, which then tried to notify. Fix: split push (async, locks,
+   notifies) from push_nowait (sync, no notify - there is nobody to wake).
+   LESSON: notify() requires the lock. "No waiters" is not an exemption.
+
+B. A LYING METRIC. slept_for_politeness reported 62.96s on a 4.86s crawl. It
+   was summing idle time across all workers - arithmetically true, and read as
+   if the crawl had spent a minute being polite. Renamed to
+   worker_seconds_waiting and documented as an aggregate.
+   LESSON: a metric that reads as nonsense will be believed by whoever reads
+   it next. Name it for what it measures, or delete it.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  uv run pytest tests/test_stage04_concurrency.py -q      -> 14 passed
+
+ONE host - concurrency must buy NOTHING:
+  workers= 1   4.89s  pages=19  peak_in_flight=1
+  workers= 8   4.86s  pages=19  peak_in_flight=1
+  (this is the stage PASSING; a speedup here would mean politeness broke)
+
+THREE hosts - it buys exactly the host count:
+  workers= 1   6.29s  pages=57  peak_in_flight=1
+  workers= 8   4.85s  pages=57  peak_in_flight=3
+  workers=16   4.86s  pages=57  peak_in_flight=3   (ceiling is the host count)
+
+The most instructive number is 6.29s. One worker over three hosts already
+beats 57 x 0.2s = 11.4s, because the partitioned frontier lets it SWITCH HOSTS
+instead of sleeping. Most of the win is the queue structure; the extra workers
+only recover what network I/O was costing.
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+WORKS   N concurrent workers, per-host serialisation preserved
+        a hanging host does not stall the crawl (proved with /hang, 30s)
+        page SET identical at 1 and 8 workers, though order is not
+
+KNOWN   raw-string seen-set still -> stage 5
+WRONG   still walks into /gen     -> stage 5
+        still loses all state on a crash -> stage 5

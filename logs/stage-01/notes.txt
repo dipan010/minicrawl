@@ -1,0 +1,123 @@
+STAGE 1 - FETCH ONE PAGE, EXTRACT ITS LINKS
+tag: stage-01
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Retrieve a single URL over HTTP and recover every link on it correctly.
+No crawl loop yet. Just the two primitives every crawler is built out of.
+
+Also: build the measuring instrument first. Nothing later can be called
+"correct" without a declared ground truth to be correct against.
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. git init; uv init-style pyproject with httpx + selectolax.
+    Deps deliberately minimal: an async HTTP client and a fast HTML parser.
+ 2. Wrote testsite/spec.py FIRST - the corpus as declarative data, before any
+    crawler code existed. Page graph, robots variants, URL spellings,
+    duplicate pairs, traps, all as Python dicts.
+ 3. Wrote testsite/server.py - a stdlib ThreadingHTTPServer that renders the
+    spec. Four ports (8081-8084) so per-host behaviour is testable later.
+ 4. Wrote testsite/manifest.py - walks the declared graph with NO HTTP and NO
+    HTML parsing, emits testsite/manifest.json including expected_pages.
+ 5. Wrote minicrawl/fetch.py - one async GET, streamed, byte-capped.
+ 6. Wrote minicrawl/extract.py - parse HTML, resolve and validate links.
+ 7. Wrote tests/test_stage01_fetch_extract.py (11 tests) and fixed what failed.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+GROUND TRUTH BEFORE IMPLEMENTATION
+  A test that only asserts "the code did what the code does" proves nothing.
+  The corpus is declared independently, and the expected result is derived
+  from that declaration by a path that shares no code with the crawler.
+
+THE REQUESTED URL IS NOT THE RETRIEVED URL
+  HTTP redirects mean the response came from somewhere else. Relative links
+  in that response resolve against where you LANDED, not what you asked for.
+  Conflating the two is a bug that only appears on redirecting sites.
+
+BOUNDED READS
+  A response body is attacker-controlled and unbounded. Read it as a stream
+  with a running byte count, not with .read(). The cap is a property of the
+  request, so it must be recorded alongside the body to mean anything.
+
+ERRORS AS DATA, NOT EXCEPTIONS
+  A crawler must record "this URL was tried and failed" as a first-class
+  result. Raising loses the attempt, and the attempt is information.
+
+URL RESOLUTION IS NOT STRING CONCATENATION
+  Three separate mechanisms change what a relative href means:
+    <base href>          overrides the document URL for the whole page
+    //host/path          protocol-relative, inherits the scheme
+    #fragment            client-side only, never a distinct resource
+  RFC 3986 defines resolution; urljoin implements it. Concatenation does not.
+
+RESOLVING IS NOT VALIDATING
+  urljoin accepts syntactically broken input and returns something. The URL
+  only raises later, when a component (the port) is finally parsed. A crawler
+  must force that parse at extraction time, where the cost is one dropped
+  link, rather than at fetch time, where the cost is a dead crawl.
+
+CONTENT-TYPE GATING
+  A PDF is not HTML with unusual tags. Decide whether to parse from the
+  Content-Type header, before handing bytes to a parser.
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  ground truth before implementation  -> testsite/spec.py (declaration)
+                                         testsite/manifest.py::expected_pages
+  requested vs retrieved URL          -> fetch.Fetched.url / .final_url
+  bounded reads                       -> fetch.fetch() client.stream() loop
+                                         Fetched.cap, Fetched.truncated
+  errors as data                      -> fetch.Fetched.error, fetch._failed()
+  <base href>                         -> extract.parse(), the base override
+  protocol-relative / relative        -> extract.absolutise() via urljoin
+  fragments are not resources         -> extract.absolutise() via urldefrag
+  resolving is not validating         -> extract.absolutise(), the `parts.port`
+                                         line that exists only to raise
+  content-type gating                 -> fetch.Fetched.is_html
+  politeness of identification        -> fetch.DEFAULT_UA
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+A. Fetched.truncated compared len(body) against the module constant instead of
+   the cap actually used for that request. A 4096-byte cap produced a 4096-byte
+   body and truncated == False. Fix: carry the cap on the record.
+   LESSON: a derived property must derive from the same inputs as the value.
+
+B. absolutise() was written to catch ValueError from urljoin. urljoin never
+   raised - it happily returned "http://127.0.0.1:8081:/a". The failure only
+   surfaces when something reads .port. Fix: parse and touch .port explicitly.
+   LESSON: "it didn't raise" is not "it's valid".
+
+C. Corpus bug found by the crawler, not by a test: the server's trailing-slash
+   fallback located the page then re-looked-up the RAW path in render_page,
+   raising KeyError inside the handler thread and closing the connection with
+   no response. Surfaced to the client as "Server disconnected".
+   LESSON: an exception in a request handler looks like a network fault.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  uv run pytest tests/test_stage01_fetch_extract.py -q     -> 11 passed
+  uv run python -m testsite.manifest | head                -> ground truth
+  uv run python -m testsite.server --once /docs/           -> one rendered page
+
+Key numbers:
+  /variants declares 14 hrefs -> extraction yields 9 distinct links
+    (fragments, the bare "?" and a repeated absolute form collapse here;
+     the malformed one is dropped; the rest survive until stage 5)
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+WORKS   one request, redirect-aware, byte-capped, error-recording
+        link extraction with base href, relative and protocol-relative forms
+        ground truth manifest: 19 pages expected from a polite same-host crawl
+
+MISSING everything else. There is no crawl loop, no queue, no politeness.

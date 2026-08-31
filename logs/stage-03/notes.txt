@@ -1,0 +1,132 @@
+STAGE 3 - ROBOTS.TXT AND POLITENESS
+tag: stage-03
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Make the crawler a good citizen: read and obey robots.txt, and never hit a
+single host faster than that host has said it will tolerate.
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. Read RFC 9309 rather than copying urllib.robotparser's behaviour.
+ 2. Wrote robots.py: line parser -> groups -> rules, pattern compiler, and
+    the query API (allowed / crawl_delay / group_for).
+ 3. Wrote politeness.py: a per-host clock keyed on host:port.
+ 4. Added RobotsCache to crawler.py - one fetch per host, cached for the
+    whole crawl, exempt from the delay it is about to discover.
+ 5. Wired both into the loop; added --ignore-robots and --delay to the CLI.
+ 6. Unit-tested the parser against the EXACT robots bodies the corpus serves,
+    so a corpus edit cannot silently stop testing the parser.
+ 7. Flipped the stage-2 characterisation test into a positive assertion.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+ROBOTS EXCLUSION PROTOCOL (RFC 9309)
+  A voluntary, advisory standard. The crawler is trusted to obey it, which
+  means getting it right is an ethical question, not just a correctness one.
+
+STATUS CODE SEMANTICS - THE INVERTED RULE
+  Sec 2.3.1.3   4xx (incl. 404)      -> the site published no rules. Crawl freely.
+  Sec 2.3.1.4   5xx or unreachable   -> assume a COMPLETE DISALLOW.
+  Most implementations get the second backwards. The reasoning: a site that is
+  failing is not a site that is granting consent. urllib.robotparser reads a
+  500 as permission, which is why this parser is hand-rolled.
+
+LONGEST-MATCH, NOT FIRST-MATCH (Sec 2.2.2)
+  Allow and Disallow are ranked by PATTERN LENGTH, not by line order. On an
+  exact tie, Allow wins. An order-based parser passes most robots files and
+  then quietly does the wrong thing on exactly the ones that matter:
+      Disallow: /private/                  (9 chars)
+      Allow:    /private/public-corner     (23 chars -> wins)
+
+USER-AGENT GROUP SELECTION
+  Only ONE group applies: the most specific whose token matches. Groups do NOT
+  merge. A rule in the "*" group does not apply to you if you matched a more
+  specific group, even if your group is silent on that path.
+
+PATTERN LANGUAGE
+  Only two metacharacters: "*" (any run) and a trailing "$" (end anchor).
+  Everything else is literal. robots.txt is attacker-controlled input, so the
+  regex is built character by character with re.escape, never by trusting the
+  pattern string.
+
+POLITENESS IS PER-HOST, NOT GLOBAL
+  Ten hosts at 1 req/s each is polite. One host at 10 req/s is an outage. The
+  rate limit therefore keys on host:port. THIS is why the corpus runs on four
+  origins - against a single origin, a correct per-host clock and a global
+  sleep() are indistinguishable, and the bug hides until stage 4.
+
+DELAY IS BETWEEN REQUEST STARTS
+  Crawl-delay measures start-to-start, so a slow response consumes part of the
+  interval. Total sleep is therefore always slightly UNDER delay x gaps.
+
+BOOTSTRAP EXEMPTION
+  The robots.txt fetch itself cannot be subject to Crawl-delay, because the
+  delay is stated inside the file being fetched.
+
+HOSTILE INPUT IS CLAMPED
+  Crawl-delay: 86400 is not binding. Politeness is a courtesy the crawler
+  extends, not a lever the site pulls without limit.
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  4xx -> allow all           -> robots.RobotsTxt.from_response(), ALLOW_ALL
+  5xx -> disallow all        -> robots.RobotsTxt.from_response(), DISALLOW_ALL
+  longest-match wins         -> robots.RobotsTxt.allowed(), Rule.specificity
+  allow breaks a tie         -> robots.RobotsTxt.allowed(), the `or rule.allow`
+  group selection            -> robots.RobotsTxt.group_for()
+  "*" and "$" only           -> robots.compile_pattern()
+  empty Disallow = allow all -> robots.RobotsTxt.parse(), the `value == ""` skip
+  consecutive UA lines share -> robots.RobotsTxt.parse(), `starting_group`
+  per-host clock             -> politeness.Politeness._next_allowed[host]
+  start-to-start delay       -> politeness.Politeness.wait()
+  hostile delay clamped      -> politeness.Politeness.set_delay(), max_delay
+  one robots per host        -> crawler.RobotsCache
+  bootstrap exemption        -> crawler.RobotsCache.get() (fetches directly)
+  sitemap discovery          -> robots.RobotsTxt.sitemaps (collected, unused
+                                until stage 8)
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+A. test_crawl_delay_actually_slows_the_crawl asserted
+       total_sleep >= 0.2 * gaps
+   and failed by 14ms. Not a bug in the crawler: the delay is start-to-start,
+   so fetch time eats into each interval and total sleep is always a little
+   under the product. Fixed by asserting against the WALL CLOCK, which is the
+   thing that actually has to clear the bar.
+   LESSON: assert the invariant, not an arithmetic proxy for it.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  uv run pytest tests/test_stage03_robots.py -q       -> 22 passed
+
+Cross-origin behaviour (the four robots variants):
+  :8081  rules apply         blocked /private/secret + /files/report.pdf
+                             kept /private/public-corner (Allow: exception)
+                             7.86s polite sleep over 40 pages
+  :8082  robots 404          allow all, 0 blocked
+  :8083  robots 500          DISALLOW ALL - 0 pages crawled
+  :8084  Disallow: /gen/     generator trap closed by robots alone
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+WORKS   robots.txt obeyed correctly including the cases everyone gets wrong
+        per-host rate limiting
+        sitemap URLs collected
+
+FLIPPED test_characterises_no_robots_support_yet
+     -> tests/test_stage03_robots.py::test_disallowed_pages_are_never_fetched
+
+KNOWN   still one request at a time  -> stage 4
+WRONG   still no normalisation       -> stage 5
+        still walks into /gen on 8081-> stage 5
+        --verify still reads 0 missing / 13 extra, but the extras have changed
+        character: robots-blocked pages are gone, and the freed max_pages
+        budget is simply spent going deeper into the trap.

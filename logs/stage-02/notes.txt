@@ -1,0 +1,120 @@
+STAGE 2 - THE CRAWL LOOP
+tag: stage-02
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Turn "fetch one page" into "fetch a site". Five boxes:
+
+    seed -> frontier -> fetch -> extract -> push links -> repeat
+
+Everything in stages 3-10 is a refinement of one of those five. Nothing new
+is added to the pipeline shape after this stage.
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. Declared the frontier as an INTERFACE (frontier/base.py) before writing
+    any implementation of it. This was the highest-leverage decision in the
+    project and it was made here, not at stage 9 where it becomes obvious.
+ 2. Implemented MemoryFrontier: a deque plus a seen-set of raw URL strings.
+ 3. Wrote crawler.py: the sequential while-loop over pop -> fetch -> parse ->
+    push, with same-host scoping, a depth limit and a page cap.
+ 4. Wrote cli.py with --verify, which diffs a real crawl against
+    testsite/manifest.json and prints missing / extra.
+ 5. Ran it. Read the diff. Wrote characterisation tests asserting the
+    shortcomings the diff exposed.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+THE FRONTIER
+  The queue of URLs discovered but not yet fetched. Its ordering discipline
+  IS the crawl strategy:
+    FIFO (deque)  -> breadth-first: shallow and broad, covers a site evenly
+    LIFO (stack)  -> depth-first: tunnels down one path, rarely what you want
+    heap          -> priority crawling (stage 8)
+  Changing one data structure changes the entire character of the crawl.
+
+CYCLE AVOIDANCE VIA A SEEN-SET
+  The web is a graph with cycles, not a tree. /a -> /b -> /c -> /a is the
+  normal case. Without a seen-set the loop never terminates. WHAT you put in
+  the seen-set defines what "the same page" means - stage 2 puts raw URL
+  strings in it, which is why /a and /a/ count as two pages.
+
+SCOPE
+  A crawl needs a boundary or it becomes a crawl of the entire web. Two
+  independent limits, doing different jobs:
+    same_host   a spatial boundary  (do not leave these origins)
+    max_depth   a distance boundary (do not go more than N links from a seed)
+
+BAND-AIDS VS FEATURES
+  max_pages is not a feature. It exists only because this stage has no way to
+  survive a generated page family, and it is what STOPS the crawl instead of
+  the frontier draining. Naming a band-aid honestly is what makes it obvious
+  which later stage has to remove it.
+
+CHARACTERISATION TESTING
+  A test that asserts current, known-wrong behaviour. It documents a gap
+  precisely and is written to FAIL when the stage that fixes it lands.
+  "Definition of done" for a stage becomes: the relevant test flipped.
+
+PROGRAMMING TO AN INTERFACE BEFORE YOU NEED IT
+  Declaring Frontier as a Protocol with one implementation looks like
+  over-engineering at stage 2. It is what makes stages 5 and 9 refactors
+  rather than rewrites. Cost now: ~20 lines. Cost later if skipped: a rewrite
+  of the crawl loop, twice.
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  frontier as an interface   -> frontier/base.py  (Frontier Protocol, Request)
+  FIFO / breadth-first       -> frontier/memory.py, collections.deque
+  seen-set / cycle avoidance -> frontier/memory.py MemoryFrontier._seen
+  the crawl loop             -> crawler.crawl(), the while (request := pop())
+  spatial scope              -> crawler.crawl(), seed_hosts + config.same_host
+  distance scope             -> CrawlConfig.max_depth, Request.depth
+  band-aid termination       -> CrawlConfig.max_pages, result.stopped_because
+  ground-truth diffing       -> cli.verify()
+  characterisation tests     -> tests/test_stage02_bfs.py test_characterises_*
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+Nothing in the crawler. The stage's value was in what the diff EXPOSED:
+
+  expected 19 pages, crawled 32 on 127.0.0.1:8081
+  0 missing, 13 extra
+
+  0 MISSING  -> link extraction, redirect following and base-href resolution
+                are correct. This half of the crawler is finished.
+  13 EXTRA   -> /private/secret (robots.txt is never read) and 12 pages of
+                generator trap (nothing recognises a trap).
+
+Also visible in the log, and not in the diff:
+  - /a was fetched TEN times, once per spelling, because the seen-set holds
+    raw strings.
+  - the unnormalised /a/ made the relative link "c" resolve to /a/c - a URL
+    that does not exist, INVENTED by the crawler out of its own sloppiness.
+    This is why normalisation is a correctness feature, not an optimisation.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  uv run python -m testsite.server            # terminal 1
+  uv run minicrawl http://127.0.0.1:8081/ --max-pages 40 --verify
+
+  uv run pytest tests/test_stage02_bfs.py -q
+
+Expected at this tag: 0 missing, 13 extra, stopped by max_pages.
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+WORKS   a complete crawl loop; finds every expected page; terminates
+KNOWN   no robots.txt        -> stage 3
+WRONG   no rate limiting     -> stage 3
+        one request at a time-> stage 4
+        raw-string seen-set  -> stage 5
+        walks into traps     -> stage 5
+        loses everything on a crash -> stage 5

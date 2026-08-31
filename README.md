@@ -7,6 +7,17 @@ The point is not to produce another crawler — Scrapy exists. The point is that
 by stage 10 you can read Scrapy's source and recognise every piece of it,
 because you wrote a worse version of each one first.
 
+## Two kinds of notes
+
+`docs/stage-NN.md` is **why** — narrative rationale, the judgement calls, the
+rules that had to be taken back out. Read it to understand a decision.
+
+`logs/stage-NN/notes.txt` is **what and how** — the steps in the order they
+happened, the concepts stated independently of this codebase, and an explicit
+concept → code map naming the file and function each idea is made of. Read it
+to study the theory or to retrace the work. Every stage gets one, written as
+the stage lands.
+
 ## The ladder
 
 Each stage is a git tag and a note in `docs/`. Nothing is checked in until it

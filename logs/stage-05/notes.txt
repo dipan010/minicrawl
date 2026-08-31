@@ -1,0 +1,198 @@
+STAGE 5 - ONE RESOURCE ONE URL; ONE CRAWL MANY PROCESSES
+tag: stage-05
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Three things, all of which stage 2's diff had been demanding:
+  - collapse the many spellings of a URL into one
+  - stop walking into generated page families
+  - survive the process dying
+
+Success criterion: the crawl ends because the FRONTIER DRAINED, not because
+max_pages ran out. That single sentence is the whole stage.
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. Wrote normalize.py. Verified every declared variant group collapses.
+ 2. Wrote traps.py - shape counting plus three cheaper structural guards.
+ 3. Extracted frontier/scheduling.py: the stage-4 scheduling logic, made
+    storage-agnostic behind four hooks. HostedFrontier reduced to storage.
+ 4. Wrote frontier/sqlite.py against those same hooks.
+ 5. Wired normalisation + traps + optional durable frontier into crawler.py.
+ 6. Ran it - and normalisation BROKE THE CORPUS. See WHAT BROKE (A). Removed
+    the trailing-slash rule and changed the corpus to 301 instead.
+ 7. Added mark_seen() so a followed redirect records where it landed.
+ 8. Taught cli.verify() to classify extras as bounded-trap vs unexpected.
+ 9. Flipped both remaining characterisation tests.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+URL NORMALISATION / CANONICALISATION
+  Many URL strings address one resource. A crawler must map them to one key or
+  it refetches the same page N times AND its seen-set stops meaning anything.
+
+  SAFE transformations (RFC 3986 says these cannot change the resource):
+    lowercase scheme and host      HTTP://Ex.COM -> http://ex.com
+    drop the default port          http://x:80/a -> http://x/a
+    drop the root label            http://x./a   -> http://x/a
+    resolve dot segments           /x/../a       -> /a
+    drop the fragment              /a#top        -> /a
+    normalise percent-encoding     /%7Euser      -> /~user
+    sort query parameters          ?b=2&a=1      -> ?a=1&b=2
+    drop visitor-identifying params  ?utm_source=, ?sid=, ?fbclid=
+
+  UNSAFE, deliberately absent:
+    stripping the trailing slash   (breaks directory routes - see WHAT BROKE)
+    dropping index.html            (a guess about server routing)
+    lowercasing the path           (paths are case-sensitive on most servers)
+    dropping the whole query       (/a?a=1&b=2 is NOT /a)
+
+  Each unsafe rule is a guess about server behaviour dressed up as a canonical
+  form. The distinguishing question: can I PROVE this cannot change which
+  resource is addressed? If not, it is not normalisation, it is a bet.
+
+REDIRECTS ARE THE AUTHORITY ON EQUIVALENCE
+  Where normalisation cannot prove two spellings are one, the SERVER can say
+  so, with a 301. The crawler learns by following and recording where it
+  landed. One request buys an authoritative answer instead of a guess.
+
+  Consequence: /a's 14 spellings collapse to THREE fetches, not two.
+      8 bare spellings    -> /a            by normalisation, free
+      5 queried spellings -> /a?a=1&b=2    by normalisation, free
+      /a/                 -> /a            by 301, costs one request
+  mark_seen() records the landing URL so LATER discoveries are free. A URL
+  already queued when the redirect resolves cannot be un-queued - which is
+  exactly why the number is three and not two.
+
+CRAWLER TRAPS AND URL SHAPE
+  Normalisation cannot help with /gen/1, /gen/2, /gen/3... Every one of those
+  URLs is genuinely distinct and serves genuinely different bytes. The crawl is
+  not confused, it is being FED.
+
+  The tool is counting SHAPES rather than URLs: replace whole numeric path
+  segments with a placeholder, so /gen/1 and /gen/9999 are one /gen/<num>.
+  A per-shape budget caps any single generated family:
+    - without a rule that names /gen (it generalises)
+    - without capping the crawl as a whole
+    - only whole-numeric segments collapse, so /dup/exact-1 stays distinct
+
+  Budget is spent only on URLs the frontier does NOT already know. Otherwise a
+  page linked from everywhere burns budget a genuinely new URL needs.
+
+  Three cheaper structural guards cover the classic variants:
+    max_path_depth       calendars linking to next month forever
+    max_repeated_segment symlink loops (/a/a/a/a/)
+    max_query_params     faceted search multiplying filters
+
+  A general defence BOUNDS a generator; it cannot know to exclude one. That is
+  a content-level judgement, and it belongs to stage 6.
+
+DURABILITY AND CRASH RECOVERY
+  The table IS the seen-set: url is the primary key, so INSERT OR IGNORE does
+  deduplication and persistence in one statement.
+
+    state = queued     waiting for a worker
+          | in_flight  handed out, not yet finished
+          | done       finished, never queued again
+
+  Recovery is one statement at open:
+      UPDATE frontier SET state='queued' WHERE state='in_flight'
+  A row still in_flight belongs to a worker that no longer exists. Without
+  this, every crash silently drops exactly the requests that were IN PROGRESS -
+  which are, by selection, the slow and difficult ones.
+
+  WAL journal mode so an abrupt exit does not corrupt the file.
+
+  sqlite3 is synchronous and blocks the event loop. At this scale each call is
+  microseconds against a local file, cheaper than the thread hop that avoiding
+  it would cost. Stage 9 moves the frontier out of the process anyway.
+
+INTERFACE SEGREGATION, CASHED IN
+  Adding a second frontier required NO new scheduling code. Readiness clock,
+  one-in-flight-per-host and worker waking moved to SchedulingFrontier; storage
+  became four hooks (_add, _take, _hosts_with_work, _complete). This is the
+  stage-2 decision paying for itself, three stages later.
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  safe normalisation         -> normalize.normalize()
+  trailing slash NOT stripped-> normalize.normalize_path() (and its docstring,
+                                which explains the removed rule)
+  tracking-param removal     -> normalize.TRACKING_PARAMS, normalize_query()
+  redirect as authority      -> crawler.worker(), the mark_seen(landed) call
+                                frontier/scheduling.py mark_seen()
+  URL shape                  -> normalize.url_shape()
+  shape budget               -> traps.TrapGuard._reason(), self._shapes
+  budget not spent on dups   -> crawler.worker(), `if frontier.known(link)`
+  structural trap guards     -> traps.TrapGuard max_path_depth /
+                                max_repeated_segment / max_query_params
+  storage-agnostic scheduling-> frontier/scheduling.py SchedulingFrontier
+  table as seen-set          -> frontier/sqlite.py, INSERT OR IGNORE + PK
+  crash recovery             -> frontier/sqlite.py _recover()
+  durability                 -> PRAGMA journal_mode=WAL
+  bounded-vs-unexpected diff -> cli.verify(), manifest["trap_prefixes"]
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+A. THE RULE THAT HAD TO BE TAKEN BACK OUT.
+   normalize_path() originally stripped trailing slashes, on the
+   reasonable-sounding grounds that /a and /a/ are usually the same page. It
+   broke the corpus instantly: /docs/ became /docs, which 404s, because a
+   directory-style route is a real thing on real servers.
+
+   A normaliser that strips the slash does not deduplicate URLs. It INVENTS
+   404s. Removed the rule; changed the corpus to answer /a/ with a 301 rather
+   than silently serving both spellings - the old behaviour had been letting a
+   wrong normaliser look right.
+   LESSON: if a test corpus tolerates a wrong rule, the corpus is wrong too.
+
+B. Three stage-5 tests asserted numbers I had assumed rather than measured:
+     - "/a becomes 2 fetches"   -> actually 3 (the 301 costs one request)
+     - "landing URL never fetched twice" -> only true for LATER discoveries;
+       both spellings were already queued. Rewritten to test the frontier
+       mechanism directly, which is deterministic, instead of a race.
+     - "no path crawled in both resume runs" -> paths CAN repeat across runs
+       when a redirect chain in run 2 lands on a page run 1 fetched directly.
+       Rewritten to assert no URL is REQUESTED twice, which is the real claim.
+   LESSON: assert what the design actually guarantees, not what would be nice.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  uv run pytest tests/test_stage05_normalize_persist.py -q   -> 27 passed
+  uv run minicrawl http://127.0.0.1:8081/ --verify
+
+  expected 19 pages, crawled 24 on 127.0.0.1:8081
+  bounded     5 trap pages under /gen/ - capped, not excluded
+  refused     4 shape_budget
+  exact match against the manifest
+                            ... stopped: frontier drained
+
+Resumability:
+  run 1 (cap 8)          fetched= 8  already_done= 0  stopped: max_pages (8)
+  run 2 (resume)         fetched=19  already_done= 9  stopped: frontier drained
+  run 3 (nothing left)   fetched= 0  already_done=31  stopped: frontier drained
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+WORKS   normalisation, trap bounding, resumable and crash-recoverable crawls
+        the crawl terminates on its own
+
+FLIPPED test_characterises_no_url_normalisation_yet
+     -> test_fourteen_spellings_of_a_become_three_fetches
+        test_characterises_generator_trap_is_entered
+     -> test_generator_trap_is_bounded
+        (all three characterisation tests from stage 2 are now flipped)
+
+KNOWN   5 /gen/* pages still crawled - bounded, not excluded. They are
+WRONG   near-duplicates of each other and removing them is a CONTENT
+        judgement -> stage 6
+        no boilerplate removal, no dup detection -> stage 6
+        /js-only/child still invisible -> stage 7
+        /etag never revalidated, sitemaps collected but unused -> stage 8
