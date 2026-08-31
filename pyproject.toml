@@ -16,6 +16,9 @@ render = [
 distributed = [
     "redis>=8.1.0",
 ]
+scrapy = [
+    "scrapy>=2.18.0",
+]
 
 [project.scripts]
 minicrawl = "minicrawl.cli:main"

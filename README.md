@@ -18,10 +18,11 @@ concept → code map naming the file and function each idea is made of. Read it
 to study the theory or to retrace the work. Every stage gets one, written as
 the stage lands.
 
-## The ladder
+## The ladder — complete
 
-Each stage is a git tag and a note in `docs/`. Nothing is checked in until it
-is verified against the ground-truth manifest.
+Ten stages, ten tags, 151 tests. Each stage is a git tag, a rationale note in
+`docs/`, and a working log in `logs/`. Nothing was checked in until it verified
+against the ground-truth manifest.
 
 | Stage | Adds | Concept it proves |
 |------:|------|-------------------|
@@ -34,7 +35,7 @@ is verified against the ground-truth manifest.
 | 7 ✅ | `render.py` | Escalating to Playwright *only* for pages that need it |
 | 8 ✅ | `freshness.py`, `sitemap.py`, `PriorityQueue` | Conditional GET, recrawl scheduling, priority frontier |
 | 9 ✅ | `frontier/redis.py` | Distributed coordination, leases, shared politeness |
-| 10 | `scrapy_port/` | What the framework actually buys you |
+| 10 ✅ | `scrapy_port/`, `scripts/compare_frameworks.py` | What the framework actually buys you |
 
 ## Run it
 
@@ -66,6 +67,10 @@ uv run minicrawl http://127.0.0.1:8081/ --sitemaps --freshness fresh.sqlite3
 docker run -d --rm --name minicrawl-redis -p 6379:6379 redis:7-alpine
 uv sync --extra distributed
 uv run python scripts/distributed_demo.py 3
+
+# the punchline: this crawler vs Scrapy, same corpus, every number measured
+uv sync --extra scrapy
+uv run python scripts/compare_frameworks.py
 
 uv run pytest -q
 ```
@@ -100,6 +105,28 @@ exact match against the manifest
 `max_pages` ran out. The 5 remaining trap pages are bounded rather than absent:
 a general defence can cap a generator, it cannot know to exclude one. Stage 6
 removes them on content.
+
+## The punchline
+
+`scripts/compare_frameworks.py` runs this crawler and a Scrapy port of it
+against the same corpus:
+
+```
+                            reqs  pages  /gen  /a spellings   secs
+minicrawl (stage 5)           29     29     5             2    6.5
+scrapy (defaults)            247    246   223             4    1.8
+scrapy + minicrawl.traps      25     24     3             2    1.1
+```
+
+Both find every expected page. Scrapy is faster because minicrawl is slower on
+purpose — it honours the `Crawl-delay: 0.2` the site states, which Scrapy never
+reads. Against a site asking for 49 seconds of spacing, the default spider took
+1.8. And where `robots.txt` answers HTTP 500, RFC 9309 says assume a complete
+disallow: minicrawl fetches 0 pages, Scrapy fetches 251.
+
+None of that is a bug in Scrapy. Each is a default doing what it says, and
+noticing them is the whole point of having built the thing once. See
+`docs/stage-10.md`.
 
 ## Known gaps, on purpose
 

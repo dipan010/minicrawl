@@ -1,0 +1,164 @@
+STAGE 10 - THE FRAMEWORK COMPARISON
+tag: stage-10
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Reimplement the stage-5 crawl against Scrapy, run both on the same corpus,
+and measure the difference. The deliverable is not a spider. It is the ability
+to read a framework's settings and know which of your own modules each one
+replaces, which ones it does not, and what closing the gap costs.
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. Added scrapy as an optional extra. Verified w3lib's canonicalize_url on
+    the corpus's own URL spellings BEFORE writing anything.
+ 2. Wrote scrapy_port/spider.py -- plain, framework defaults plus the settings
+    a careful person would set. Each setting commented with the minicrawl
+    module it replaces.
+ 3. Wrote scrapy_port/run.py: separate process, JSON out. Scrapy owns a
+    Twisted reactor that cannot be restarted and minicrawl runs on asyncio;
+    separate processes are also the fairest way to time them.
+ 4. It crawled 0 pages. Diagnosed: start_requests() is dead code in Scrapy
+    2.13+ (see WHAT BROKE A).
+ 5. It then crawled all four origins. Set allowed_domains -- which made it
+    crawl exactly 1 page. Diagnosed (WHAT BROKE B) and scoped by hand.
+ 6. Wrote scripts/compare_frameworks.py: both crawlers, same corpus, diffed
+    against the same manifest, every number measured.
+ 7. Added a third row -- scrapy importing minicrawl.traps -- to show the cost
+    of closing one gap rather than just naming it.
+ 8. Added a robots-500 section after measuring that divergence separately.
+ 9. Wrote tests that pin each measured difference, so a version bump in either
+    project fails a test instead of leaving a stale claim in a document.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+WHAT A MATURE FRAMEWORK IS FOR
+  Scrapy replaces, by configuration, roughly everything stages 2-5 and 8 built:
+  the scheduler, the dupefilter, robots handling, per-domain concurrency, depth
+  and page limits, HTTP caching, sitemap spiders. Plus retries, autothrottle,
+  feed exports, stats, a shell, a plugin architecture and fifteen years of
+  other people's edge cases.
+  It found every expected page. On the thing a crawler is for, it wins on
+  effort by a wide margin. Any comparison that does not say this first is
+  selling something.
+
+DEFAULTS ARE A POSITION, NOT AN ABSENCE
+  Every divergence measured here is a default doing exactly what it says:
+    - no trap defence exists, so 223 generated pages
+    - canonicalize_url is conservative, so 4 spellings of /a instead of 2
+    - DOWNLOAD_DELAY is a constant you choose, so Crawl-delay is ignored
+    - robots.txt that fails is treated as absent, so a 500 permits crawling
+  None of these is a bug in Scrapy. Each is a choice, and each is defensible in
+  isolation. Knowing they were made is the entire value of having built the
+  thing yourself.
+
+CONSERVATIVE IS NOT THE SAME AS CORRECT
+  w3lib keeps utm_source and sid because dropping a query parameter CAN change
+  which resource is addressed, and a general-purpose library cannot know. That
+  is right for a library and wrong for a crawl: which parameters are safe to
+  drop is site knowledge, and supplying it is the crawler author's job. A
+  framework cannot make that call for you, and it should not pretend to.
+
+POLITENESS IS THE AXIS WHERE THE GAP IS SERIOUS
+  247 requests in 1.8 seconds against a site that asked for 49. AutoThrottle
+  does not close this: it adapts to LATENCY, which protects throughput, not the
+  origin's stated wishes. The two are unrelated goals that look similar.
+  minicrawl is slower -- 6.5s vs 1.8s -- and it is slower BECAUSE it is polite.
+  Reporting that the other way round would be dishonest.
+
+WHAT HAPPENS WHEN THE RULES CANNOT BE READ
+  The parsers agree perfectly. Protego and minicrawl.robots return identical
+  answers for every path in the corpus, and a test pins that. The entire
+  divergence is in the failure branch: RFC 9309 2.3.1.4 says a 5xx means assume
+  complete disallow; Scrapy allows. Measured: 0 pages vs 251.
+
+FRAMEWORK EXTENSION POINTS ARE API SURFACE YOU DO NOT CONTROL
+  Two bugs, same shape, both silent (WHAT BROKE A and B). A hook that was
+  renamed and a setting whose two halves disagree, each producing a crawl that
+  reports success and does nothing. In minicrawl the equivalent code is a line
+  in a function you can read. That is not better engineering -- it is LESS
+  engineering, with the tradeoff somewhere visible.
+
+MEASURE BEFORE ASSERTING, INCLUDING ABOUT YOURSELF
+  Three claims in this stage were wrong before they were measured:
+  Scrapy's port scoping (twice, in both directions), and what
+  canonicalize_url does to tracking parameters. Every number in the docs comes
+  from scripts/compare_frameworks.py, which anyone can re-run.
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  ROBOTSTXT_OBEY             -> replaces minicrawl/robots.py + RobotsCache
+  CONCURRENT_REQUESTS_PER_DOMAIN -> replaces the lease in frontier/scheduling.py
+  DEPTH_LIMIT / CLOSESPIDER_PAGECOUNT -> replaces max_depth / max_pages
+  scheduler + RFPDupeFilter  -> replaces frontier/ (three modules)
+  HTTPCACHE_*                -> replaces most of freshness.py
+  SitemapSpider              -> replaces sitemap.py
+  (nothing)                  -> traps.py, dedup.py, render.py, normalize.py's
+                                tracking-parameter rules, Crawl-delay
+  the port itself            -> scrapy_port/spider.py, with each setting
+                                commented with what it replaces
+  the measurement            -> scripts/compare_frameworks.py
+  the claims, pinned         -> tests/test_stage10_scrapy_port.py
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+A. THE SPIDER CRAWLED ZERO PAGES AND REPORTED SUCCESS.
+   start_requests() was replaced by an async start() in Scrapy 2.13. An
+   override of the old name is simply never called: no error, no warning, no
+   deprecation notice. start_urls was empty, so there was nothing to crawl and
+   the engine finished immediately.
+   LESSON: a renamed extension point fails silently, and "it ran" is not
+   "it worked". The manifest caught this in one line.
+
+B. allowed_domains=["127.0.0.1:8081"] FILTERED EVERY REQUEST.
+   get_host_regex() builds a pattern INCLUDING the port. should_follow()
+   matches that pattern against urlparse(...).hostname, which has no port. The
+   two halves disagree, so the regex can never match and everything is offsite.
+   The crawl fetched the seed, reported success, and stopped.
+   Scoping to an origin now happens by hand in the callback: one line.
+   LESSON: two correct-looking halves of one feature can disagree, and the
+   failure mode is silence.
+
+C. I ASSERTED THE OPPOSITE OF B BEFORE MEASURING IT.
+   scrapy.utils.url.url_is_from_any_domain DOES handle host:port, so a quick
+   check said port scoping worked. That helper is not what OffsiteMiddleware
+   uses. The check was real, the inference was wrong.
+   LESSON: verifying a mechanism means verifying the code path actually taken,
+   not a plausible-looking function with the right name.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  uv sync --extra scrapy
+  uv run python scripts/compare_frameworks.py
+  uv run pytest tests/test_stage10_scrapy_port.py -q       -> 6 passed
+
+                              reqs  pages  /gen  /a spellings   secs
+  minicrawl (stage 5)           29     29     5             2    6.5
+  scrapy (defaults)            247    246   223             4    1.8
+  scrapy + minicrawl.traps      25     24     3             2    1.1
+
+  coverage           all three complete (20 pages expected)
+  Crawl-delay        minicrawl honoured; scrapy 247 reqs in 1.8s, floor 49.2s
+  robots.txt 500     minicrawl 0 pages; scrapy 251 pages
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+THE LADDER IS COMPLETE. Ten stages, ten tags, 151 tests.
+
+What it was for: Scrapy's settings are not incantations any more.
+ROBOTSTXT_OBEY is robots.py. CONCURRENT_REQUESTS_PER_DOMAIN is the lease. The
+dupefilter is the seen-set, and whether it holds raw or canonical URLs decides
+whether /a is one page or ten. HTTPCACHE is freshness.py, and the reason a
+cached response must still carry its outlinks is that a 304 has no body.
+
+Use Scrapy. It is more capable and better tested than this. But when a crawl
+misbehaves -- 223 pages of a calendar, a site that asked for a delay and did
+not get one, a spider that fetches one page and reports success -- the shape of
+the problem is now recognisable. That is the only thing the ladder was for.
