@@ -10,6 +10,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+render = [
+    "playwright>=1.62.0",
+]
 
 [project.scripts]
 minicrawl = "minicrawl.cli:main"

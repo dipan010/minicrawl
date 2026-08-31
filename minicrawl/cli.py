@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .crawler import CrawlConfig, Page, crawl
+from .render import PlaywrightRenderer
 from .traps import TrapGuard
 
 MANIFEST = Path(__file__).resolve().parent.parent / "testsite" / "manifest.json"
@@ -53,6 +54,11 @@ def verify(result, host: str) -> int:
               f"{counts.get('near_duplicate', 0)} near dup, "
               f"{counts.get('canonical_alias', 0)} canonical alias, "
               f"{counts.get('already_seen', 0)} refetched")
+    if result.render_candidates:
+        share = len(result.rendered_pages) / max(1, len(result.pages)) * 100
+        print(f"  rendered    {len(result.rendered_pages)} of {len(result.pages)} pages "
+              f"({share:.0f}%) in {result.render_seconds:.1f}s "
+              f"vs {result.fetch_seconds:.1f}s of fetching")
     if result.rejected_by_traps:
         reasons = ", ".join(f"{n} {why}" for why, n in
                             sorted(result.rejected_by_traps.items()))
@@ -82,6 +88,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="SQLite frontier file; re-run with the same path to resume")
     ap.add_argument("--no-normalize", action="store_true")
     ap.add_argument("--no-traps", action="store_true")
+    ap.add_argument("--render", action="store_true",
+                    help="escalate JS-dependent pages to a headless browser")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--verify", action="store_true",
                     help="diff the crawl against testsite/manifest.json")
@@ -94,6 +102,7 @@ def main(argv: list[str] | None = None) -> int:
         workers=args.workers, frontier_path=args.frontier,
         normalize_urls=not args.no_normalize,
         traps=None if args.no_traps else TrapGuard(),
+        renderer=PlaywrightRenderer() if args.render else None,
         on_page=None if args.quiet else print_page,
     )
     result = asyncio.run(crawl(config))

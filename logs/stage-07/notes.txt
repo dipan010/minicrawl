@@ -1,0 +1,172 @@
+STAGE 7 - JAVASCRIPT RENDERING, BY EXCEPTION
+tag: stage-07
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Reach content that only exists after JavaScript runs, WITHOUT paying browser
+prices for the ninety-odd percent of pages that do not need one.
+
+The deliverable is not a renderer. It is the decision procedure that keeps the
+renderer from being used.
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. Checked for playwright and a browser: neither present. Added playwright as
+    an OPTIONAL extra (`uv add --optional render`) so the project still
+    installs and tests without it.
+ 2. Started the ~150MB chromium download in the background and built the
+    browser-independent half meanwhile.
+ 3. Added triage signals to extract.parse(): script_bytes, empty_app_root,
+    noscript_hint. Computed there because main_text() strips the scripts they
+    describe - they cannot be recovered afterwards.
+ 4. Wrote render.triage() as four named rules returning REASONS, not a score.
+ 5. Measured against every corpus page before writing any escalation code.
+    Exactly one page fired. Adjusted nothing - the rules were right first time
+    because the conjunctions were chosen from the corpus's known hard cases
+    (/docs/one is 3 words and must not fire).
+ 6. Wrote the Renderer protocol, PlaywrightRenderer, and a filesystem-only
+    availability check.
+ 7. Wired escalation into the crawl loop: triage -> render -> RE-EXTRACT.
+ 8. Added render_everything as the control case, and measured the three-way
+    comparison that is the point of the stage.
+ 9. Wrote tests, most of which use a stub renderer and need no browser.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+THE COST ASYMMETRY
+  A headless browser costs 10-50x an HTTP request in wall time, CPU and
+  memory. On a typical site the large majority of pages are fully present in
+  the HTTP response. Rendering everything is the obvious implementation and
+  the wrong one: it buys nothing on most pages and costs an order of magnitude
+  everywhere.
+
+  Measured here: 1.80s with triage vs 16.64s rendering everything, for
+  IDENTICAL results. 9x wall clock, 20x browser time - and that is against a
+  local server, with no network latency to amortise the browser away.
+
+TRIAGE AS THE REAL PROBLEM
+  Given a response you already have, would a browser add anything? Two failure
+  directions with very different costs:
+     false negative -> content silently missed
+     false positive -> an order of magnitude of wasted compute
+  Neither is recoverable later, so the decision has to be made well the first
+  time, from free signals.
+
+RULES WITH REASONS, NOT A SCORE
+  Four named rules, each returning a reason string:
+     empty_app_root         an empty #app/#root/app-root container
+     noscript_hint          a <noscript> that mentions JavaScript
+     thin_and_script_heavy  few words AND scripts outweighing prose
+     no_links_with_scripts  text, no links at all, scripts present
+  A score is unauditable. When a crawl escalates the wrong page, "0.72" tells
+  you nothing and "empty_app_root" tells you everything.
+
+WHY EVERY RULE IS A CONJUNCTION
+  Each individual signal has an innocent explanation:
+     few words        -> /docs/one is three words and needs no browser
+     script heavy     -> a docs page can be script heavy and server-rendered
+     no links         -> a leaf page legitimately has none
+  Only the COMBINATIONS are diagnostic. A rule that fires on any single signal
+  escalates most of a real site.
+
+  The two strong signals (empty app root, noscript hint) are allowed to stand
+  alone because they are statements of intent in the markup rather than
+  circumstantial evidence.
+
+RE-EXTRACTION, NOT MERGING
+  After a successful render the page is parsed again from the rendered DOM and
+  the ORIGINAL extraction is discarded. The rendered DOM is a superset by
+  construction; keeping both and merging invites two link sets disagreeing
+  about what the page said.
+
+ESCALATION AS A FALLBACK, NEVER A DEPENDENCY
+  render() returns None on any failure and the crawl continues with the
+  unrendered response - which is exactly the result the crawler would have had
+  without a browser at all. A browser that dies must be an inconvenience, not
+  a crawl failure.
+
+BROWSER LIFETIME
+  One browser for the whole crawl. Launching costs about a second, so a browser
+  per page makes the escalation cost dwarf the fetch it supplements. One page
+  (tab) per render, closed after, so a leak is bounded.
+
+POLITENESS FALLS OUT OF THE STAGE-4 DESIGN
+  A render fires many subresource requests at the same host. Because rendering
+  happens INSIDE the worker's request - while it still holds that host's
+  in-flight slot - those requests cannot overlap another crawl request to the
+  same origin. The escalation was placed inside the request rather than beside
+  it specifically so that stage 4's per-host serialisation would cover it with
+  no new machinery.
+
+OPTIONAL DEPENDENCIES
+  playwright is an optional extra, not a requirement. The project installs,
+  imports and tests without it; browser-dependent tests skip. A teaching repo
+  that cannot be run without a 150MB download has a worse first five minutes.
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  signals read pre-strip     -> extract.parse(): script_bytes, empty_app_root,
+                                noscript_hint (computed BEFORE main_text())
+  app mount points           -> extract.APP_ROOTS
+  triage rules               -> render.triage()
+  reasons not scores         -> render.Triage.reasons
+  conjunction thresholds     -> render.FEW_WORDS, render.SCRIPT_HEAVY_RATIO
+  renderer as an interface   -> render.Renderer (Protocol)
+  one browser per crawl      -> render.PlaywrightRenderer._browser_ready()
+  failure is not fatal       -> render.PlaywrightRenderer.render() except -> None
+  side-effect-free probe     -> render.playwright_available()
+  escalate then re-extract   -> crawler.worker(), the triage/render block
+  control case               -> CrawlConfig.render_everything
+  cost accounting            -> CrawlResult.render_seconds / fetch_seconds
+  ground truth for rendering -> manifest["expected_pages_rendered"]
+  browser-free testing       -> tests/test_stage07_render.py StubRenderer
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+A. playwright_available() originally started a driver process to ask whether a
+   browser existed. It answered correctly, took about a second, and left
+   "Task was destroyed but it is pending!" plus an unretrieved TargetClosedError
+   on stderr. Far too much machinery for a question that only gates a test skip.
+   Rewritten as a filesystem check of the browser cache directory.
+   LESSON: match the cost of a check to the cost of being wrong about it.
+
+Nothing else broke. The triage rules fired correctly on the first measurement,
+which is a consequence of choosing the conjunctions from the corpus's known
+awkward cases (/docs/one, /variants) rather than from the case they were meant
+to catch.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  uv sync --extra render
+  uv run playwright install chromium         # ~150MB, one time
+  uv run pytest tests/test_stage07_render.py -q      -> 15 passed
+  uv run minicrawl http://127.0.0.1:8081/ --render --verify
+
+Three-way comparison (the stage in one table):
+
+                        wall     pages  rendered  browser time   /js-only/child
+  no browser            1.03s      25         0        0.00s     not found
+  triage (this stage)   1.80s      26         1        0.78s     found
+  render everything    16.64s      26        26       15.49s     found
+
+Triage decisions across the corpus: exactly one page escalated (/js-only), on
+three independent reasons. Every other page, including the three-word
+/docs/one, correctly declined.
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+WORKS   JS-dependent content reached; browser used on 1 page in 26
+        crawl unaffected when no browser is installed
+        ground truth now covers both configurations
+
+KNOWN   /etag is refetched in full every time even though the server offers a
+WRONG   304; sitemaps are collected and never used as seeds; nothing is ever
+        recrawled                                          -> stage 8
+        one process owns the frontier                      -> stage 9

@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
-from . import extract, fetch, robots as robots_mod
+from . import extract, fetch, render as render_mod, robots as robots_mod
 from .dedup import DuplicateIndex, Verdict
 from .frontier import HostedFrontier, Request, SqliteFrontier
 from .normalize import normalize
@@ -50,9 +50,12 @@ class CrawlConfig:
     # -- stage 6 --
     dedup: DuplicateIndex | None = field(default_factory=DuplicateIndex)
     follow_duplicate_links: bool = False
+    # -- stage 7 --
+    renderer: object | None = None      # a render.Renderer, or None for no browser
+    render_everything: bool = False     # control case: skip triage, render all
 
 
-@dataclass(slots=True)
+@dataclass
 class Page:
     url: str
     final_url: str
@@ -65,6 +68,8 @@ class Page:
     verdict: str = "new"
     duplicate_of: str | None = None
     words: int = 0
+    rendered: bool = False
+    render_reasons: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -83,6 +88,10 @@ class CrawlResult:
     hosts_seen: int = 0
     rejected_by_traps: dict[str, int] = field(default_factory=dict)
     dedup_counts: dict[str, int] = field(default_factory=dict)
+    render_candidates: list[str] = field(default_factory=list)
+    rendered_pages: list[str] = field(default_factory=list)
+    render_seconds: float = 0.0
+    fetch_seconds: float = 0.0
     requeued_on_resume: int = 0
     already_done_on_start: int = 0
 
@@ -197,6 +206,7 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                     result.peak_in_flight_per_host.get(host, 0), per_host_in_flight[host])
                 try:
                     got = await fetch.fetch(client, request.url)
+                    result.fetch_seconds += got.elapsed
                 finally:
                     in_flight -= 1
                     per_host_in_flight[host] -= 1
@@ -220,6 +230,24 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
 
                 if got.is_html:
                     found = extract.parse(got.body, got.final_url)
+
+                    # Triage on the response we already have: does a browser
+                    # have anything to add? Escalate only if it does.
+                    if config.renderer is not None:
+                        verdict = render_mod.triage(found, len(got.body))
+                        if config.render_everything or verdict.should_render:
+                            page.render_reasons = verdict.reasons or ["render_everything"]
+                            result.render_candidates.append(got.final_url)
+                            started = time.perf_counter()
+                            html = await config.renderer.render(got.final_url)
+                            result.render_seconds += time.perf_counter() - started
+                            if html:
+                                # Re-extract from the rendered DOM. Links found
+                                # only after JS ran are the entire point.
+                                found = extract.parse(html.encode(), got.final_url)
+                                page.rendered = True
+                                result.rendered_pages.append(got.final_url)
+
                     page.title, page.n_links = found.title, len(found.links)
                     page.words = len(found.main_text.split())
 
@@ -268,6 +296,8 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
         await asyncio.gather(*(worker() for _ in range(max(1, config.workers))))
     finally:
         await client.aclose()
+        if config.renderer is not None:
+            await config.renderer.close()
 
     if robots is not None:
         result.sitemaps = robots.sitemaps

@@ -31,7 +31,7 @@ is verified against the ground-truth manifest.
 | 4 ✅ | `frontier/hosted.py`, worker pool | Concurrency that does not become a DoS |
 | 5 ✅ | `normalize.py`, `traps.py`, `frontier/sqlite.py` | Canonicalisation, dedup, resumable crawls, trap defence |
 | 6 ✅ | `dedup.py`, `main_text()` | Boilerplate removal, exact + near-dup (simhash), canonical |
-| 7 | `render.py` | Escalating to Playwright *only* for pages that need it |
+| 7 ✅ | `render.py` | Escalating to Playwright *only* for pages that need it |
 | 8 | `freshness.py`, sitemaps | Conditional GET, recrawl scheduling, priority frontier |
 | 9 | `frontier/redis.py` | Distributed coordination, host-sharded workers |
 | 10 | `scrapy_port/` | What the framework actually buys you |
@@ -40,6 +40,9 @@ is verified against the ground-truth manifest.
 
 ```bash
 uv sync --extra dev
+
+# optional, for stage 7 only (~150MB)
+uv sync --extra render && uv run playwright install chromium
 
 # terminal 1 — the corpus, on four origins
 uv run python -m testsite.server
@@ -52,6 +55,9 @@ uv run minicrawl http://127.0.0.1:808{1,2,4}/ --workers 8 --max-pages 60
 
 # a resumable crawl: interrupt it, run it again, it picks up where it stopped
 uv run minicrawl http://127.0.0.1:8081/ --frontier crawl.sqlite3 --verify
+
+# escalate to a browser only where triage says it would help (1 page in 26)
+uv run minicrawl http://127.0.0.1:8081/ --render
 
 uv run pytest -q
 ```

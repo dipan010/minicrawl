@@ -540,5 +540,27 @@
     "/private/public-corner",
     "/slow",
     "/variants"
+  ],
+  "expected_pages_rendered": [
+    "/",
+    "/a",
+    "/b",
+    "/c",
+    "/docs/",
+    "/docs/one",
+    "/docs/sub/three",
+    "/docs/two",
+    "/dup/canonical-source",
+    "/dup/exact-1",
+    "/dup/exact-2",
+    "/dup/near-1",
+    "/dup/near-2",
+    "/etag",
+    "/hosts",
+    "/js-only",
+    "/js-only/child",
+    "/private/public-corner",
+    "/slow",
+    "/variants"
   ]
 }

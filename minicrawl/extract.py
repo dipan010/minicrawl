@@ -25,6 +25,12 @@ SKIP_SCHEMES = ("mailto:", "javascript:", "tel:", "data:", "#")
 BOILERPLATE = ("script", "style", "noscript", "template", "svg",
                "nav", "header", "footer", "aside", "form")
 
+# Containers a single-page app mounts into. Empty in the HTTP response, filled
+# by the framework. Their presence is the loudest cheap signal that the served
+# markup is a shell rather than a document.
+APP_ROOTS = ("#app", "#root", "#__next", "#___gatsby", "[data-reactroot]",
+             "app-root", "[ng-app]", "[data-vue-root]")
+
 
 @dataclass(slots=True)
 class Extracted:
@@ -33,6 +39,11 @@ class Extracted:
     canonical: str | None
     text: str           # everything in <body>, furniture included
     main_text: str      # furniture removed — what duplicate detection reads
+    # Stage 7 signals. Computed here because they must be read BEFORE
+    # main_text() strips the scripts they are about.
+    script_bytes: int = 0
+    empty_app_root: bool = False
+    noscript_hint: bool = False
 
 
 def parse(body: bytes, base_url: str) -> Extracted:
@@ -57,6 +68,13 @@ def parse(body: bytes, base_url: str) -> Extracted:
     if (tag := tree.css_first('link[rel="canonical"][href]')):
         canonical = absolutise(tag.attributes.get("href", ""), base)
 
+    script_bytes = sum(len(node.html or "") for node in tree.css("script"))
+    empty_app_root = any(
+        (node.text(strip=True) == "" and not node.css("a"))
+        for selector in APP_ROOTS for node in tree.css(selector))
+    noscript_hint = any("javascript" in (node.text() or "").lower()
+                        for node in tree.css("noscript"))
+
     title_node = tree.css_first("title")
     body_node = tree.css_first("body")
     return Extracted(
@@ -65,6 +83,9 @@ def parse(body: bytes, base_url: str) -> Extracted:
         canonical=canonical,
         text=(body_node.text(separator=" ", strip=True) if body_node else ""),
         main_text=main_text(tree),
+        script_bytes=script_bytes,
+        empty_app_root=empty_app_root,
+        noscript_hint=noscript_hint,
     )
 
 

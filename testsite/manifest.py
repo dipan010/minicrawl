@@ -130,6 +130,10 @@ def build() -> dict:
         "traps": spec.TRAPS,
         # THE headline assertion: a polite, same-host crawl from "/" finds exactly this.
         "expected_pages": expected_pages(primary),
+        # With a headless browser in the loop, one more page becomes reachable:
+        # its only inbound link is written by JavaScript.
+        "expected_pages_rendered": sorted(
+            expected_pages(primary) + spec.PAGES["/js-only"]["js_links"]),
     }
 
 
