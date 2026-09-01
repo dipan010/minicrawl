@@ -109,16 +109,27 @@ class CrawlResult:
     bytes_saved_by_304: int = 0
     requeued_on_resume: int = 0
     already_done_on_start: int = 0
+    # URLs a previous run finished. A resumed crawl fetches only what is left,
+    # so coverage has to be judged against this plus what it fetched itself.
+    already_done_urls: list[str] = field(default_factory=list)
 
     @property
     def duration(self) -> float:
         return self.finished - self.started
 
-    def paths(self, host: str) -> set[str]:
-        """Crawled paths on one host — the shape the manifest is diffed against."""
+    def paths(self, host: str, include_previous: bool = False) -> set[str]:
+        """Crawled paths on one host — the shape the manifest is diffed against.
+
+        With include_previous, paths a previous run already finished count too.
+        A resumed crawl fetches only what is left, so judging it on its own
+        pages alone reports every page the first run handled as missing.
+        """
+        urls = [page.final_url for page in self.pages]
+        if include_previous:
+            urls += self.already_done_urls
         out = set()
-        for page in self.pages:
-            parts = urlsplit(page.final_url)
+        for url in urls:
+            parts = urlsplit(url)
             if parts.netloc == host:
                 out.add(parts.path or "/")
         return out
@@ -189,7 +200,8 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
     elif config.frontier_path:
         frontier = SqliteFrontier(politeness, config.frontier_path)
         result.requeued_on_resume = frontier.recovered
-        result.already_done_on_start = frontier.done_count
+        result.already_done_urls = frontier.done_urls()
+        result.already_done_on_start = len(result.already_done_urls)
     else:
         frontier = HostedFrontier(
             politeness,

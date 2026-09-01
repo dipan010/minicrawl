@@ -39,11 +39,18 @@ against the ground-truth manifest.
 
 ## Run it
 
+`uv sync` is exact: each invocation installs precisely the extras you name and
+**uninstalls everything else**. So name them together, or use `--all-extras`.
+
 ```bash
+# everything, including the optional stages 7, 9 and 10
+uv sync --all-extras
+
+# or just the core crawler and its tests (stages 1-6, 8)
 uv sync --extra dev
 
-# optional, for stage 7 only (~150MB)
-uv sync --extra render && uv run playwright install chromium
+# stage 7 needs a browser as well (~150MB, one time)
+uv run playwright install chromium
 
 # terminal 1 — the corpus, on four origins
 uv run python -m testsite.server
@@ -51,8 +58,11 @@ uv run python -m testsite.server
 # terminal 2 — crawl it, and diff against ground truth
 uv run minicrawl http://127.0.0.1:8081/ --max-pages 40 --verify
 
-# concurrency across hosts, politeness within each one
-uv run minicrawl http://127.0.0.1:808{1,2,4}/ --workers 8 --max-pages 60
+# concurrency across hosts, politeness within each one.
+# --no-dedup because the four origins serve the SAME corpus: with stage 6 on,
+# hosts 2 and 4 are correctly identified as duplicates of host 1 and their
+# links are suppressed, which is right but leaves little to be concurrent about.
+uv run minicrawl http://127.0.0.1:808{1,2,4}/ --workers 8 --max-pages 60 --no-dedup
 
 # a resumable crawl: interrupt it, run it again, it picks up where it stopped
 uv run minicrawl http://127.0.0.1:8081/ --frontier crawl.sqlite3 --verify
@@ -65,15 +75,16 @@ uv run minicrawl http://127.0.0.1:8081/ --sitemaps --freshness fresh.sqlite3
 
 # one crawl split across three processes, coordinating only through Redis
 docker run -d --rm --name minicrawl-redis -p 6379:6379 redis:7-alpine
-uv sync --extra distributed
 uv run python scripts/distributed_demo.py 3
 
 # the punchline: this crawler vs Scrapy, same corpus, every number measured
-uv sync --extra scrapy
 uv run python scripts/compare_frameworks.py
 
-uv run pytest -q
+uv run pytest -q            # 151 tests; browser and Redis tests skip if absent
 ```
+
+Every optional dependency is genuinely optional. Without Playwright, Redis or
+Scrapy the suite still runs — those tests skip and say why.
 
 ## How correctness is decided
 
@@ -117,6 +128,9 @@ minicrawl (stage 5)           29     29     5             2    6.5
 scrapy (defaults)            247    246   223             4    1.8
 scrapy + minicrawl.traps      25     24     3             2    1.1
 ```
+
+(The Scrapy row drifts a few pages between runs; `CLOSESPIDER_PAGECOUNT` stops
+the spider with requests still in flight.)
 
 Both find every expected page. Scrapy is faster because minicrawl is slower on
 purpose — it honours the `Crawl-delay: 0.2` the site states, which Scrapy never

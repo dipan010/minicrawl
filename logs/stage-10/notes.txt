@@ -47,7 +47,7 @@ WHAT A MATURE FRAMEWORK IS FOR
 
 DEFAULTS ARE A POSITION, NOT AN ABSENCE
   Every divergence measured here is a default doing exactly what it says:
-    - no trap defence exists, so 223 generated pages
+    - no trap defence exists, so 220+ generated pages
     - canonicalize_url is conservative, so 4 spellings of /a instead of 2
     - DOWNLOAD_DELAY is a constant you choose, so Crawl-delay is ignored
     - robots.txt that fails is treated as absent, so a 500 permits crawling
@@ -63,7 +63,8 @@ CONSERVATIVE IS NOT THE SAME AS CORRECT
   framework cannot make that call for you, and it should not pretend to.
 
 POLITENESS IS THE AXIS WHERE THE GAP IS SERIOUS
-  247 requests in 1.8 seconds against a site that asked for 49. AutoThrottle
+  ~250 requests in under 2 seconds against a site that asked for 49.
+  AutoThrottle
   does not close this: it adapts to LATENCY, which protects throughput, not the
   origin's stated wishes. The two are unrelated goals that look similar.
   minicrawl is slower -- 6.5s vs 1.8s -- and it is slower BECAUSE it is polite.
@@ -138,14 +139,17 @@ C. I ASSERTED THE OPPOSITE OF B BEFORE MEASURING IT.
   uv run python scripts/compare_frameworks.py
   uv run pytest tests/test_stage10_scrapy_port.py -q       -> 6 passed
 
+  (the scrapy row drifts a few pages run to run: CLOSESPIDER_PAGECOUNT stops
+   the spider with requests still in flight, so its cap is a floor)
+
                               reqs  pages  /gen  /a spellings   secs
   minicrawl (stage 5)           29     29     5             2    6.5
   scrapy (defaults)            247    246   223             4    1.8
   scrapy + minicrawl.traps      25     24     3             2    1.1
 
   coverage           all three complete (20 pages expected)
-  Crawl-delay        minicrawl honoured; scrapy 247 reqs in 1.8s, floor 49.2s
-  robots.txt 500     minicrawl 0 pages; scrapy 251 pages
+  Crawl-delay        minicrawl honoured; scrapy ~250 reqs in 1.8s, floor ~49s
+  robots.txt 500     minicrawl 0 pages; scrapy 250+ pages
 
 
 7. STATE AFTER THIS STAGE
@@ -159,6 +163,6 @@ whether /a is one page or ten. HTTPCACHE is freshness.py, and the reason a
 cached response must still carry its outlinks is that a 304 has no body.
 
 Use Scrapy. It is more capable and better tested than this. But when a crawl
-misbehaves -- 223 pages of a calendar, a site that asked for a delay and did
+misbehaves -- 220 pages of a calendar, a site that asked for a delay and did
 not get one, a spider that fetches one page and reports success -- the shape of
 the problem is now recognisable. That is the only thing the ladder was for.

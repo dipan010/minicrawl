@@ -114,6 +114,12 @@ class SqliteFrontier(SchedulingFrontier):
     def done_count(self) -> int:
         return self._count("done")
 
+    def done_urls(self) -> list[str]:
+        """Everything a previous run already finished. A resumed crawl fetches
+        only what is left, so this is what it takes to judge coverage."""
+        return [r[0] for r in self._db.execute(
+            "SELECT url FROM frontier WHERE state='done'")]
+
     @property
     def host_count(self) -> int:
         return self._db.execute(

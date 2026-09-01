@@ -4,7 +4,10 @@
 **Verify:** `uv sync --extra scrapy && uv run python scripts/compare_frameworks.py`
 **Tests:** `uv run pytest tests/test_stage10_scrapy_port.py -q` (6 tests)
 
-Everything below is measured against the same corpus, not recalled.
+Everything below is measured against the same corpus, not recalled. The
+Scrapy row varies by a few pages between runs — `CLOSESPIDER_PAGECOUNT`
+stops the spider while requests are still in flight, so its cap is a floor,
+not an exact figure. One representative run:
 
 ```
                             reqs  pages  /gen  /a spellings   secs
@@ -48,7 +51,7 @@ the framework wins on effort by a wide margin.
 
 ## Where the defaults diverge, and by how much
 
-**The generated family: 223 pages against 5.** Scrapy ships no trap defence of
+**The generated family: 220-odd pages against 5.** Scrapy ships no trap defence of
 any kind, and `DEPTH_LIMIT` does not substitute for one — it bounds a crawl, it
 does not recognise that a site is manufacturing pages. Importing `minicrawl.traps`
 into the spider is a one-line change and takes it to 3, which is the useful half
@@ -66,12 +69,12 @@ safe to drop is site knowledge, and it is the crawler author's job.
 constant *you* pick; Scrapy never reads the delay the site states. AutoThrottle
 adapts to latency, which protects throughput rather than the origin's stated
 wishes. Against a site asking for 0.2s between requests, the default spider
-issued 247 requests in 1.8 seconds where the site asked for 49.
+issued around 250 requests in under two seconds where the site asked for 49.
 
 minicrawl is **slower** here — 6.5s against 1.8s — and it is slower precisely
 because it is polite. That is the honest way round.
 
-**robots.txt that fails: 251 pages against 0.** RFC 9309 §2.3.1.4 says a 5xx or
+**robots.txt that fails: 250-odd pages against 0.** RFC 9309 §2.3.1.4 says a 5xx or
 unreachable robots.txt means assume a complete disallow. Scrapy's middleware
 allows the crawl when it cannot fetch the file. The parsers agree perfectly on
 the rules themselves — a test pins that — so the divergence is entirely in what

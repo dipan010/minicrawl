@@ -22,3 +22,21 @@ Every notes.txt uses the same sections:
 
 A stage is finished when its characterisation tests are flipped and the numbers
 in section 6 reproduce.
+
+THE STAGES
+----------
+  01  fetch one page, extract its links      HTTP, body caps, URL resolution
+  02  the crawl loop                         frontier, BFS, cycles, scope
+  03  robots.txt and politeness              RFC 9309, per-host rate limiting
+  04  the worker pool                        concurrency without a DoS
+  05  normalisation, traps, persistence      canonical URLs, shape budgets, resume
+  06  content extraction and dedup           boilerplate, simhash, banding
+  07  JavaScript rendering by exception      triage, not rendering
+  08  freshness, sitemaps, priority          conditional GET, adaptive schedules
+  09  distributed frontier                   atomic dedup, leases, shared clocks
+  10  the framework comparison               what Scrapy buys, and what it does not
+
+Where the WHAT BROKE sections are worth reading on their own: 05 (a
+normalisation rule that invented 404s), 06 (a degenerate corpus that broke
+simhash, and a finally block that recorded work never done), 08 (conditional
+GET blinding the crawl), 10 (two framework hooks that failed in total silence).
