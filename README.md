@@ -86,36 +86,120 @@ uv run pytest -q            # 151 tests; browser and Redis tests skip if absent
 Every optional dependency is genuinely optional. Without Playwright, Redis or
 Scrapy the suite still runs — those tests skip and say why.
 
+## Layout
+
+```
+minicrawl/            the crawler
+  fetch.py            one HTTP request: streaming, byte-capped, errors as data
+  extract.py          links (base href, relative, validated) and main text
+  normalize.py        canonical URLs, and the rules deliberately left out
+  robots.py           RFC 9309, hand-rolled
+  politeness.py       the per-host clock
+  traps.py            URL-shape budgets, for sites that generate pages at you
+  dedup.py            content hash, simhash, banded near-duplicate index
+  render.py           triage first, headless browser only if it would help
+  freshness.py        validators, change detection, adaptive recrawl schedule
+  sitemap.py          index and urlset, tolerant of malformed XML
+  crawler.py          the loop, and the worker pool over it
+  cli.py              the command line
+  frontier/
+    base.py           Request, and the Frontier protocol
+    scheduling.py     readiness clock, one-per-host guard, termination
+    memory.py         deque (FIFO) and heap (priority) queues
+    hosted.py         in-memory, partitioned by host
+    sqlite.py         durable and resumable
+    redis.py          shared across processes, with leases
+
+testsite/             the corpus — the measuring instrument
+  spec.py             the whole site declared as data. Edit this, never the JSON
+  server.py           serves it on four origins
+  manifest.py         derives ground truth from spec.py, with no HTTP at all
+  manifest.json       generated; the file every crawl is diffed against
+
+docs/stage-NN.md      why each stage is designed the way it is
+logs/stage-NN/        how it was built, and which code each concept lives in
+scripts/              the two multi-process demos
+scrapy_port/          the same crawl written against Scrapy, for stage 10
+tests/                151 tests, named by the stage they pin
+```
+
+## The corpus
+
+Four origins, all serving the same declared site, because per-host politeness
+and host sharding cannot be demonstrated against one:
+
+| Origin | Its job |
+|---|---|
+| `:8081` | the main corpus. `robots.txt` with rules, an `Allow:` exception, `Crawl-delay: 0.2` |
+| `:8082` | `robots.txt` answers **404** — RFC 9309 says crawl freely |
+| `:8083` | `robots.txt` answers **500** — RFC 9309 says assume a total ban |
+| `:8084` | `Disallow: /gen/` — the trap closed by robots alone |
+
+`docs/testsite.md` lists every pathology in it and the stage each one targets:
+redirect chains and loops, 14 spellings of one URL, exact and near duplicates, a
+page only JavaScript can reach, a page nothing links to, a page that changes on
+every request, and an unbounded generator.
+
+## Command line
+
+```
+minicrawl SEED [SEED ...] [options]
+```
+
+| Flag | What it turns on | Stage |
+|---|---|---|
+| `--verify` | diff the crawl against `testsite/manifest.json` | 2 |
+| `--max-pages`, `--max-depth`, `--timeout` | the caps | 2 |
+| `--all-hosts` | leave the seed origins | 2 |
+| `--ignore-robots`, `--delay` | robots and per-host rate limiting | 3 |
+| `--workers N` | concurrent workers, shared across hosts | 4 |
+| `--frontier PATH` | durable SQLite frontier; re-run to resume | 5 |
+| `--no-normalize`, `--no-traps` | switch off canonicalisation / trap defence | 5 |
+| `--no-dedup` | switch off content duplicate detection | 6 |
+| `--render` | escalate JS-dependent pages to a headless browser | 7 |
+| `--sitemaps` | read sitemaps as a second seed source | 8 |
+| `--freshness PATH` | conditional GET and recrawl scheduling across runs | 8 |
+| `--priority` | order the frontier by priority instead of arrival | 8 |
+| `--redis [URL]`, `--redis-prefix` | share the frontier across processes | 9 |
+| `--quiet` | suppress the per-page log | — |
+
+The `--no-*` flags exist so each stage's contribution can be switched off and
+measured, which is how most of the numbers in `docs/` were produced.
+
 ## How correctness is decided
 
 `testsite/spec.py` declares the corpus: the page graph, the robots rules, which
 URLs are spellings of the same resource, which pages are duplicates, which are
 JS-only. `testsite/manifest.py` walks that declaration — no HTTP, no HTML
-parsing — and writes `testsite/manifest.json`, including `expected_pages`: the
-**19 pages** a polite same-host crawl from `/` must find, exactly.
+parsing — and writes `testsite/manifest.json`. Its headline entry is `expected_pages`: the
+**20 pages** a polite, same-host crawl from `/` must find, exactly. Three more
+entries cover the configurations that reach further —
+`expected_pages_rendered` and `expected_pages_with_sitemaps` are 21 each,
+because a browser and a sitemap each unlock one page nothing links to.
 
 The crawler has to reach the same answer the hard way. That gap is the test.
 
-At stage 2 the diff read:
+Today, at `HEAD`:
 
 ```
-expected 19 pages, crawled 32 on 127.0.0.1:8081
-0 missing, 13 extra     # /private/secret + 12 pages of generator trap
-```
-
-At stage 5 it reads:
-
-```
-expected 19 pages, crawled 24 on 127.0.0.1:8081
-bounded     5 trap pages under /gen/ — capped, not excluded
+expected 20 pages, covered 23 on 127.0.0.1:8081
+bounded     3 trap pages under /gen/ — capped, not excluded
 exact match against the manifest
                           ... stopped: frontier drained
 ```
 
-`frontier drained` is the point. Stages 2–4 only ever stopped because
-`max_pages` ran out. The 5 remaining trap pages are bounded rather than absent:
-a general defence can cap a generator, it cannot know to exclude one. Stage 6
-removes them on content.
+`frontier drained` is the point: the crawl ended because it ran out of graph,
+not because a cap stopped it. The 3 remaining trap pages are bounded rather
+than absent — a general defence can cap a generator, it cannot know to exclude
+one.
+
+The same diff earlier in the ladder, at those tags (the corpus was 19 pages
+before `/volatile` arrived at stage 8, so `git checkout stage-02` to reproduce):
+
+```
+stage-02   expected 19, crawled 32   0 missing, 13 extra   stopped: max_pages
+stage-05   expected 19, crawled 24   5 trap pages bounded  stopped: frontier drained
+```
 
 ## The punchline
 
@@ -136,7 +220,7 @@ Both find every expected page. Scrapy is faster because minicrawl is slower on
 purpose — it honours the `Crawl-delay: 0.2` the site states, which Scrapy never
 reads. Against a site asking for 49 seconds of spacing, the default spider took
 1.8. And where `robots.txt` answers HTTP 500, RFC 9309 says assume a complete
-disallow: minicrawl fetches 0 pages, Scrapy fetches 251.
+disallow: minicrawl fetches 0 pages, Scrapy fetches around 250.
 
 None of that is a bug in Scrapy. Each is a default doing what it says, and
 noticing them is the whole point of having built the thing once. See
@@ -156,3 +240,35 @@ All three have now been flipped:
 | `no_robots_support_yet` | stage 3 | `test_disallowed_pages_are_never_fetched` |
 | `no_url_normalisation_yet` | stage 5 | `test_fourteen_spellings_of_a_become_three_fetches` |
 | `generator_trap_is_entered` | stage 5 | `test_generator_trap_is_bounded` |
+
+## Reading order
+
+If you are here to study rather than to run it:
+
+1. `logs/README.txt` — the index, and which `WHAT BROKE` sections are worth
+   reading on their own.
+2. `logs/stage-01/notes.txt` onward — each has a **concept → code map** naming
+   the file and function every idea is implemented by.
+3. `docs/testsite.md` — the corpus, and what each pathology is there to catch.
+4. `docs/stage-10.md` — what a mature framework gives you, and what it doesn't.
+
+`git diff stage-04 stage-05` and its siblings show exactly what each stage
+changed, and `git show stage-05` carries the reasoning in the tag message.
+
+## What this is not
+
+Not a crawler you should use. Scrapy is more capable, better tested and free,
+and `docs/stage-10.md` makes that case with numbers rather than modesty.
+
+There is no storage layer: pages are fetched, classified and counted, never
+written anywhere. No WARC output, no index, no extraction schema. The corpus is
+synthetic, so nothing here has met a real site's malformed markup, hostile
+rate limiting or TLS quirks.
+
+It is a teaching artifact with a test suite, and the claim it makes is narrow:
+every idea in it was built, measured against declared ground truth, and written
+down — including the parts that were wrong first.
+
+## Licence
+
+MIT. The corpus, the docs and the logs are part of it.
