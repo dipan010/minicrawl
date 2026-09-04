@@ -133,6 +133,8 @@ def build() -> dict:
                                if "sitemap_only" in v.get("flags", [])),
         "always_changes": sorted(p for p, v in spec.PAGES.items()
                                  if "always_changes" in v.get("flags", [])),
+        "content_encoded": sorted(p for p, v in spec.PAGES.items()
+                                  if "content_encoding" in v.get("flags", [])),
         "traps": spec.TRAPS,
         # THE headline assertion: a polite, same-host crawl from "/" finds exactly this.
         "expected_pages": expected_pages(primary),

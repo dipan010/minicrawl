@@ -4,9 +4,10 @@
 **Verify:** `uv run pytest tests/test_stage06_content_dedup.py -q` (20 tests)
 **Fixed:** a silent data-loss bug in the stage-5 frontier, found by this stage
 
-> **Corpus size at this tag:** ground truth was 19 pages here. `/volatile`
-> arrived at stage 8 and took it to 20, so the figures below reproduce at
-> this stage's tag, not at `HEAD`.
+> **Corpus size at this tag:** ground truth was 19 pages here. The corpus
+> grows when a stage needs a case it cannot otherwise reach — 20 at stage 8
+> (`/volatile`), 21 at stage 11 (`/compressed`). The figures below reproduce
+> at this stage's tag, not at `HEAD`.
 
 ```
 expected 19 pages, crawled 22 on 127.0.0.1:8081

@@ -9,8 +9,10 @@ host:port, so 127.0.0.1:8081 and 127.0.0.1:8082 are different hosts.
 """
 from __future__ import annotations
 
+import gzip
 import hashlib
 import html
+import io
 import itertools
 import socket
 import sys
@@ -151,7 +153,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # Every HTML page is conditionally requestable, which is what real
         # servers do and what makes a second crawl cheap.
-        self.conditional(body)
+        self.conditional(body, gzipped=bool(page.get("gzip")))
 
     def gen(self, path: str, port: int):
         """An unbounded chain of fat pages. A crawler with no caps never finishes."""
@@ -170,8 +172,15 @@ class Handler(BaseHTTPRequestHandler):
         # so the validator is too.
         self.conditional(body)
 
-    def conditional(self, body: bytes):
+    def conditional(self, body: bytes, gzipped: bool = False):
         """Send HTML, or a 304 if the client already has these exact bytes."""
+        extra = {}
+        if gzipped:
+            buffer = io.BytesIO()
+            with gzip.GzipFile(fileobj=buffer, mode="wb", mtime=0) as out:
+                out.write(body)
+            body = buffer.getvalue()
+            extra["Content-Encoding"] = "gzip"
         etag = etag_for(body)
         if self.headers.get("If-None-Match") == etag:
             self.send_response(304)
@@ -180,7 +189,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         self.send(200, body, "text/html; charset=utf-8",
-                  {"ETag": etag, "Last-Modified": LAST_MODIFIED})
+                  {"ETag": etag, "Last-Modified": LAST_MODIFIED, **extra})
 
 
 def is_serving(port: int) -> bool:

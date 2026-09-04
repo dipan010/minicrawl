@@ -127,7 +127,8 @@ PAGES: dict[str, dict] = {
             "/a", "/b", "/docs/", "/variants", "/dup/exact-1", "/dup/exact-2",
             "/dup/near-1",
             "/dup/canonical-source", "/r/1", "/loop/1", "/slow", "/js-only",
-            "/etag", "/volatile", "/private/secret", "/private/public-corner", "/gen/1",
+            "/etag", "/volatile", "/compressed", "/private/secret",
+            "/private/public-corner", "/gen/1",
             "/files/report.pdf", "/hosts",
         ],
     },
@@ -245,6 +246,16 @@ PAGES: dict[str, dict] = {
     # fresh is what an adaptive recrawl interval has to tell apart.
     "/volatile": {"title": "Volatile", "body": "<p>Different every time.</p>",
                   "links": ["/"], "volatile": True, "flags": ["always_changes"]},
+
+    # --- content-encoding -------------------------------------------------
+    # Served gzipped. httpx decodes transparently, so the body a crawler holds
+    # no longer matches the Content-Encoding and Content-Length headers that
+    # came with it. Nothing before stage 11 noticed or cared; an archive writer
+    # that emits that pair unchanged produces a record no reader will accept.
+    "/compressed": {"title": "Compressed",
+                    "body": "<p>This page is served with Content-Encoding: gzip, "
+                            "so the bytes on the wire are not the bytes you parse.</p>",
+                    "links": ["/"], "gzip": True, "flags": ["content_encoding"]},
 
     # --- reachable only from the sitemap ----------------------------------
     # NOTHING links here. A link-following crawl cannot find it at any depth,

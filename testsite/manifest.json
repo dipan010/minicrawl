@@ -34,6 +34,7 @@
         "/js-only",
         "/etag",
         "/volatile",
+        "/compressed",
         "/private/secret",
         "/private/public-corner",
         "/gen/1",
@@ -335,6 +336,19 @@
         "always_changes"
       ]
     },
+    "/compressed": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Compressed",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "content_encoding"
+      ]
+    },
     "/orphan": {
       "status": 200,
       "content_type": "text/html",
@@ -549,6 +563,9 @@
   "always_changes": [
     "/volatile"
   ],
+  "content_encoded": [
+    "/compressed"
+  ],
   "traps": {
     "/loop/1": "redirect loop \u2014 fixed in stage 5 (normalise + seen-set on redirects)",
     "/gen/1": "unbounded generator \u2014 fixed in stage 5 (byte cap + path-depth cap)",
@@ -559,6 +576,7 @@
     "/a",
     "/b",
     "/c",
+    "/compressed",
     "/docs/",
     "/docs/one",
     "/docs/sub/three",
@@ -581,6 +599,7 @@
     "/a",
     "/b",
     "/c",
+    "/compressed",
     "/docs/",
     "/docs/one",
     "/docs/sub/three",
@@ -604,6 +623,7 @@
     "/a",
     "/b",
     "/c",
+    "/compressed",
     "/docs/",
     "/docs/one",
     "/docs/sub/three",

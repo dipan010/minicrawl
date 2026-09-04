@@ -27,6 +27,12 @@ class Fetched:
     error: str | None = None
     redirects: list[str] = field(default_factory=list)
     cap: int = MAX_BODY_BYTES       # the byte cap this fetch was made under
+    # -- stage 11: what an archival record needs and a dict cannot hold --
+    # Header order and original casing, which the lowercased dict above throws
+    # away. Cheap to keep here, impossible to recover later.
+    raw_headers: list[tuple[bytes, bytes]] = field(default_factory=list)
+    http_version: str = "HTTP/1.1"
+    reason_phrase: str = "OK"
 
     @property
     def ok(self) -> bool:
@@ -48,6 +54,17 @@ class Fetched:
     @property
     def truncated(self) -> bool:
         return len(self.body) >= self.cap
+
+    @property
+    def content_encoded(self) -> bool:
+        """True when the body we hold is not the body that came off the wire.
+
+        httpx decodes gzip and deflate transparently, so `body` is the decoded
+        entity while `headers` still describes the compressed one. Anything
+        that writes the two together — an archive record, a cache entry — has
+        to reconcile them or it emits something self-contradictory.
+        """
+        return "content-encoding" in self.headers
 
 
 def make_client(timeout: float = 10.0, user_agent: str = DEFAULT_UA) -> httpx.AsyncClient:
@@ -83,6 +100,15 @@ async def fetch(client: httpx.AsyncClient, url: str,
                 elapsed=time.perf_counter() - started,
                 redirects=[str(r.url) for r in resp.history],
                 cap=max_bytes,
+                raw_headers=list(resp.headers.raw),
+                http_version=resp.extensions.get("http_version", b"HTTP/1.1").decode(
+                    "latin-1") if isinstance(
+                    resp.extensions.get("http_version"), bytes) else str(
+                    resp.extensions.get("http_version", "HTTP/1.1")),
+                reason_phrase=resp.extensions.get("reason_phrase", b"").decode(
+                    "latin-1") if isinstance(
+                    resp.extensions.get("reason_phrase"), bytes) else str(
+                    resp.extensions.get("reason_phrase", "")),
             )
     except httpx.TooManyRedirects:
         return _failed(url, "redirect_loop", started)

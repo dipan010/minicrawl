@@ -63,6 +63,9 @@ class CrawlConfig:
     # -- stage 9 --
     redis_url: str | None = None              # share the frontier across processes
     redis_prefix: str = "mc"
+    # -- stage 11 --
+    store: object | None = None               # a store.Store, or None to keep nothing
+    warc: object | None = None                # a warc.WarcWriter, or None
 
 
 @dataclass
@@ -104,6 +107,14 @@ class CrawlResult:
     render_seconds: float = 0.0
     fetch_seconds: float = 0.0
     sitemap_urls: list[str] = field(default_factory=list)
+    stored_objects: int = 0
+    stored_records: int = 0
+    bytes_stored: int = 0
+    bytes_deduplicated: int = 0
+    store_refusals: dict[str, int] = field(default_factory=dict)
+    warc_records: int = 0
+    warc_bytes: int = 0
+    warc_refusals: dict[str, int] = field(default_factory=dict)
     not_modified: list[str] = field(default_factory=list)
     bytes_downloaded: int = 0
     bytes_saved_by_304: int = 0
@@ -301,6 +312,14 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                                 Request(link, request.depth + 1, via=request.url,
                                         priority=request.depth + 1))
                     page.n_links = len(known.links) if known else 0
+                    # Offered deliberately: both refuse a bodyless response,
+                    # and the refusal is worth counting. Skipping the call
+                    # instead would hide the case that silently empties an
+                    # archive on a second crawl.
+                    if config.store is not None:
+                        config.store.put(got)
+                    if config.warc is not None:
+                        config.warc.write_response(got)
                     result.not_modified.append(request.url)
                     result.pages.append(page)
                     _emit(config, page)
@@ -389,6 +408,11 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                                 Request(link, request.depth + 1, via=request.url,
                                         priority=request.depth + 1))
 
+                if config.store is not None:
+                    config.store.put(got, title=page.title, verdict=page.verdict)
+                if config.warc is not None:
+                    config.warc.write_response(got)
+
                 result.pages.append(page)
                 _emit(config, page)
             finally:
@@ -413,6 +437,17 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
         await client.aclose()
         if config.renderer is not None:
             await config.renderer.close()
+        if config.store is not None:
+            result.stored_objects = getattr(config.store, "object_count", 0)
+            result.stored_records = getattr(config.store, "record_count", 0)
+            result.bytes_stored = getattr(config.store, "bytes_written", 0)
+            result.bytes_deduplicated = getattr(config.store, "bytes_deduplicated", 0)
+            result.store_refusals = dict(getattr(config.store, "refusals", {}))
+        if config.warc is not None:
+            result.warc_records = config.warc.records
+            result.warc_bytes = config.warc.bytes_written
+            result.warc_refusals = dict(config.warc.refusals)
+            config.warc.close()
 
     if robots is not None:
         result.sitemaps = robots.sitemaps

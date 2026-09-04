@@ -1,0 +1,209 @@
+STAGE 11 - STORAGE: WHAT THE CRAWL LEAVES BEHIND
+tag: stage-11
+===========================================================================
+
+1. GOAL
+---------------------------------------------------------------------------
+Keep the pages. Ten stages of crawler had not stored a single byte -- every
+response was fetched, classified, counted and dropped. That is enough to prove
+the crawl is correct and useless for anything anyone would crawl for.
+
+Two outputs, because "store the pages" is more than one job:
+  - a content-addressed corpus + index   (one copy per distinct document)
+  - a WARC archive                        (the response as it arrived)
+
+
+2. STEPS TAKEN
+---------------------------------------------------------------------------
+ 1. Settled the design fork in fetch.py BEFORE writing any store, on advice:
+    httpx hands back a DECODED body while the headers still describe the
+    compressed one. Writing that pair into an archive is self-contradictory.
+ 2. Found the corpus served nothing compressed, so the bug could not fire.
+    Added /compressed (served gzipped) FIRST -- corpus before implementation,
+    same as stage 1. Confirmed the mismatch reproduces: header says 191 bytes,
+    body is 255.
+ 3. Added raw_headers / http_version / reason_phrase to Fetched. Cheap at
+    fetch time, unrecoverable afterwards.
+ 4. Wrote store.py: Store protocol, NullStore, ContentStore. Smoke-tested
+    dedup, round-trip and both refusals before wiring anything.
+ 5. Wrote warc.py: WARC 1.1, one gzip member per record.
+ 6. Added warcio as a dev dependency and read the file back with it. Only then
+    was the format claim worth making.
+ 7. Wired store + warc into the crawl loop, including the 304 path -- offered
+    deliberately so the refusal is COUNTED rather than skipped.
+ 8. Tests. One of them immediately caught a wrong assertion of mine (WHAT
+    BROKE B).
+ 9. docs/, logs/, logs/README.txt index, README ladder + counts.
+
+
+3. CONCEPTS APPLIED
+---------------------------------------------------------------------------
+"STORE THE PAGES" IS THREE JOBS
+    an archive   the response exactly as it arrived, replayable   -> warc.py
+    a corpus     one copy of each distinct document               -> store.py
+    an index     extracted text and metadata, queryable           -> store.py
+  They pull in opposite directions. An archive keeps four copies of a page
+  served at four URLs because PROVENANCE is the point. A corpus keeps one
+  because THE DOCUMENT is the point. Building one and calling it the other
+  gives you an archive you cannot search or a corpus you cannot cite.
+
+CONTENT ADDRESSING
+  Name an object by the SHA-256 of its own bytes. Then:
+    - deduplication is not a feature that runs, it is what the name MEANS
+    - the second write of identical bytes is a no-op costing one hash
+    - integrity is free: the name is the checksum
+    - the same object can be referenced by any number of URLs
+  Measured here: 23 objects for 27 URLs, and the groups are exactly the ones
+  stages 5 and 6 worked to identify -- the four routes to /a, and the declared
+  exact-duplicate pair. Storage never had to be TOLD about them. It wrote them
+  to the same filename.
+
+DIRECTORY FAN-OUT
+  objects/<digest[:2]>/<digest>. A flat directory of a million files is slow
+  to list on every filesystem worth naming. The fan-out costs one string slice.
+
+TWO THINGS THAT MUST NEVER BE STORED
+  a 304 response   has no body. With --freshness a second crawl is MOSTLY
+                   304s, so letting one through replaces every archived page
+                   with zero bytes on run two.
+  a truncated body is not the document. Storing it under a digest of the
+                   fragment claims a completeness the bytes do not have.
+  Both are refusals with a stated reason, not exceptions -- same reasoning as
+  fetch errors being data: the crawl has to record that it declined.
+
+  Neither would ever fire by accident on this corpus (default cap 2MB, largest
+  page 64KB), which is exactly why they would have shipped broken.
+
+TRANSPARENT DECODING BREAKS ARCHIVING
+  httpx decodes Content-Encoding automatically. The body is therefore the
+  decoded entity while the headers describe the compressed one, and
+  Content-Length is the COMPRESSED length. Two honest resolutions:
+    (a) keep the wire bytes (aiter_raw) -- headers stay truthful, archive is
+        byte-exact, but the parser needs the decoded body so you carry both
+    (b) reconcile at write time -- drop Content-Encoding, re-derive
+        Content-Length, record that you did
+  This project has already decoded by the time fetch() returns, so it takes
+  (b) and SAYS SO in an X-Minicrawl-Decoded field. The record is replayable and
+  self-consistent but is no longer byte-exact provenance: you cannot prove from
+  the archive what the server put on the wire. Irrelevant for a search corpus,
+  disqualifying for evidence. Knowing which you are building is the decision.
+
+ARCHIVES MUST NOT NORMALISE
+  Header order and casing carry information. The lowercased dict every other
+  stage uses has destroyed both by the time an archive sees them, so Fetched
+  keeps raw_headers alongside. A normalising archive is a lying archive.
+
+WARC (ISO 28500) IS SIMPLER THAN ITS REPUTATION
+  A file is records concatenated. Each record: header block, blank line, then
+  an entire HTTP response (status line, headers, blank line, body), then two
+  CRLFs. A warcinfo record goes first.
+
+  Each record is gzipped as ITS OWN MEMBER and the members are concatenated.
+  A gzip decoder reads that as one stream; a tool that knows the trick seeks to
+  any record without decompressing what came before. That is the whole reason
+  WARC files are usable at a hundred gigabytes, and it is four lines of code.
+
+VALIDATION MUST NOT SHARE CODE WITH PRODUCTION
+  Every WARC claim is checked by reading the file back with warcio, a library
+  that has never heard of this project. Self-asserting a file format is worth
+  nothing. Same principle as the manifest: the judge and the produced artefact
+  must not share an implementation.
+
+
+4. CONCEPT -> CODE MAP
+---------------------------------------------------------------------------
+  store as an interface      -> store.Store (Protocol), store.NullStore
+  content addressing         -> store.digest_of(), ContentStore.path_for()
+  dedup as a property        -> ContentStore.put(), the `new_object` branch
+  directory fan-out          -> ContentStore.path_for(), digest[:2]
+  url -> object index        -> store.py SCHEMA, records / objects tables
+  many URLs, one document    -> ContentStore.urls_for(), duplicate_groups()
+  refuse a bodyless 304      -> ContentStore.put(), `fetched.not_modified`
+  refuse a truncated body    -> ContentStore.put(), `fetched.truncated`
+  refusals are data          -> store.Stored.refused, ContentStore.refusals
+  archival headers kept      -> fetch.Fetched.raw_headers / http_version /
+                                reason_phrase
+  the decode mismatch        -> fetch.Fetched.content_encoded
+  reconciling it             -> warc.DROP_HEADERS, warc.http_block()
+  saying so in the record    -> warc.write_response(), X-Minicrawl-Decoded
+  record framing             -> warc.WarcWriter._write_record()
+  gzip member per record     -> the gzip.compress() call in _write_record
+  lazy open, no empty file   -> WarcWriter._open()
+  independent validation     -> tests/test_stage11_storage.py, warcio
+  corpus support             -> testsite/spec.py "/compressed", server
+                                Handler.conditional(gzipped=True)
+
+
+5. WHAT BROKE
+---------------------------------------------------------------------------
+A. THE CORPUS COULD NOT EXPOSE THE BUG THE STAGE IS ABOUT.
+   Nothing in it was ever served compressed, so the decoded-body /
+   compressed-headers mismatch could not fire, and a WARC writer that emitted
+   the pair unchanged would have passed every test. Added /compressed before
+   writing the writer.
+   LESSON: same as stage 6. If the corpus tolerates a wrong implementation,
+   fix the corpus first. This is now the third stage where that was the first
+   real task.
+
+B. MY OWN ASSERTION WAS WRONG, AND THE TEST SAID SO.
+   test_a_second_crawl_does_not_empty_the_store asserted every stored body was
+   byte-identical after a second crawl. /volatile changes on EVERY request, so
+   its bytes legitimately differed. That is an update, not an emptying.
+   Rewritten to assert two separate things: nothing comes back empty, and
+   anything the server answered 304 for is byte-identical.
+   LESSON: "unchanged" and "not destroyed" are different claims. Assert the
+   one you mean.
+
+C. A DEAD LINE IN THE FIRST DRAFT OF warc.py.
+   Set WARC-Truncated then immediately popped it -- left over from changing my
+   mind about how to flag a decoded body mid-sentence. Harmless, and exactly
+   the kind of thing that survives into a codebase because it does nothing.
+   Replaced with the X-Minicrawl-Decoded field actually intended.
+
+D. A STALE CORPUS SERVER SERVED 404 FOR THE NEW PAGE.
+   serve(skip_busy=True) -- added at stage 9 so tests and demos could share one
+   corpus -- shared a server started before /compressed existed. The new page
+   404'd and briefly looked like a spec bug.
+   LESSON: the convenience that stops two things fighting over a socket also
+   lets a stale one answer. `pkill -f testsite.server` is the first thing to
+   try when a corpus change appears not to have taken.
+
+
+6. HOW TO VERIFY
+---------------------------------------------------------------------------
+  uv run pytest tests/test_stage11_storage.py -q          -> 22 passed
+  uv run minicrawl http://127.0.0.1:8081/ --store ./store --warc ./crawl.warc.gz
+
+  27 pages, 1 errors, 2 blocked by robots.txt - stopped: frontier drained
+  documents   19 unique, 2 exact dup, 3 near dup, 1 canonical alias, 2 refetched
+  stored      23 objects for 27 URLs - 208,902 bytes written, 1,764 deduplicated
+  warc        28 records, 21,837 bytes gzipped
+
+  Objects shared by more than one URL:
+    4 URLs -> ['/a', '/a/', '/a?a=1&b=2', '/r/1']
+    2 URLs -> ['/dup/exact-1', '/dup/exact-2']
+
+  Read back with warcio:
+    record types      : {'warcinfo': 1, 'response': 27}
+    length mismatches : none
+
+DONE-CONDITION (no characterisation test left to flip, so stated):
+  - objects stored < URLs recorded, by the groups the corpus declares
+  - a second crawl over a freshness store empties nothing
+  - warcio reads every record and every record declares the length it holds
+
+
+7. STATE AFTER THIS STAGE
+---------------------------------------------------------------------------
+WORKS   a content-addressed corpus with a queryable index
+        a WARC 1.1 archive, validated by an independent reader
+        deduplication that costs nothing because of how objects are named
+
+KNOWN   the archive is replayable but NOT byte-exact provenance -- the wire
+WRONG   bytes are gone before fetch() returns. Fixing it means aiter_raw() and
+        carrying both bodies, which is a real cost for a real benefit and is
+        the right call only if you are archiving as evidence.
+        No CDX index, so finding a record means scanning the file. That is the
+        next thing a real archive needs.
+        Nothing reads the store back into a crawl -- no replay, no offline
+        re-extraction from stored bytes.

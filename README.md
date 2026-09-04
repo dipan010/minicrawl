@@ -4,7 +4,7 @@ A web crawler built from scratch in Python, one concept at a time, against a
 synthetic corpus engineered to punish every shortcut.
 
 The point is not to produce another crawler — Scrapy exists. The point is that
-by stage 10 you can read Scrapy's source and recognise every piece of it,
+by the end you can read Scrapy's source and recognise every piece of it,
 because you wrote a worse version of each one first.
 
 ## Two kinds of notes
@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Ten stages, ten tags, 151 tests. Each stage is a git tag, a rationale note in
+Eleven stages, eleven tags, 173 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 
@@ -36,6 +36,7 @@ against the ground-truth manifest.
 | 8 ✅ | `freshness.py`, `sitemap.py`, `PriorityQueue` | Conditional GET, recrawl scheduling, priority frontier |
 | 9 ✅ | `frontier/redis.py` | Distributed coordination, leases, shared politeness |
 | 10 ✅ | `scrapy_port/`, `scripts/compare_frameworks.py` | What the framework actually buys you |
+| 11 ✅ | `store.py`, `warc.py` | Content addressing, WARC archives, provenance |
 
 ## Run it
 
@@ -77,6 +78,9 @@ uv run minicrawl http://127.0.0.1:8081/ --sitemaps --freshness fresh.sqlite3
 docker run -d --rm --name minicrawl-redis -p 6379:6379 redis:7-alpine
 uv run python scripts/distributed_demo.py 3
 
+# keep what it fetches: 23 objects for 27 URLs, plus a replayable archive
+uv run minicrawl http://127.0.0.1:8081/ --store ./store --warc ./crawl.warc.gz
+
 # the punchline: this crawler vs Scrapy, same corpus, every number measured
 uv run python scripts/compare_frameworks.py
 
@@ -100,6 +104,8 @@ minicrawl/            the crawler
   render.py           triage first, headless browser only if it would help
   freshness.py        validators, change detection, adaptive recrawl schedule
   sitemap.py          index and urlset, tolerant of malformed XML
+  store.py            content-addressed objects, and an index over them
+  warc.py             WARC 1.1 archives, one gzip member per record
   crawler.py          the loop, and the worker pool over it
   cli.py              the command line
   frontier/
@@ -161,6 +167,8 @@ minicrawl SEED [SEED ...] [options]
 | `--freshness PATH` | conditional GET and recrawl scheduling across runs | 8 |
 | `--priority` | order the frontier by priority instead of arrival | 8 |
 | `--redis [URL]`, `--redis-prefix` | share the frontier across processes | 9 |
+| `--store DIR` | content-addressed store: one object per distinct body | 11 |
+| `--warc PATH` | write a gzip-member WARC 1.1 archive | 11 |
 | `--quiet` | suppress the per-page log | — |
 
 The `--no-*` flags exist so each stage's contribution can be switched off and
@@ -172,9 +180,9 @@ measured, which is how most of the numbers in `docs/` were produced.
 URLs are spellings of the same resource, which pages are duplicates, which are
 JS-only. `testsite/manifest.py` walks that declaration — no HTTP, no HTML
 parsing — and writes `testsite/manifest.json`. Its headline entry is `expected_pages`: the
-**20 pages** a polite, same-host crawl from `/` must find, exactly. Three more
+**21 pages** a polite, same-host crawl from `/` must find, exactly. Two more
 entries cover the configurations that reach further —
-`expected_pages_rendered` and `expected_pages_with_sitemaps` are 21 each,
+`expected_pages_rendered` and `expected_pages_with_sitemaps` are 22 each,
 because a browser and a sitemap each unlock one page nothing links to.
 
 The crawler has to reach the same answer the hard way. That gap is the test.
@@ -182,7 +190,7 @@ The crawler has to reach the same answer the hard way. That gap is the test.
 Today, at `HEAD`:
 
 ```
-expected 20 pages, covered 23 on 127.0.0.1:8081
+expected 21 pages, covered 24 on 127.0.0.1:8081
 bounded     3 trap pages under /gen/ — capped, not excluded
 exact match against the manifest
                           ... stopped: frontier drained
@@ -193,8 +201,10 @@ not because a cap stopped it. The 3 remaining trap pages are bounded rather
 than absent — a general defence can cap a generator, it cannot know to exclude
 one.
 
-The same diff earlier in the ladder, at those tags (the corpus was 19 pages
-before `/volatile` arrived at stage 8, so `git checkout stage-02` to reproduce):
+The corpus grows when a stage needs a case it cannot otherwise reach — 19
+pages originally, 20 when `/volatile` arrived at stage 8, 21 when
+`/compressed` arrived at stage 11. Earlier figures reproduce at their own tags
+(`git checkout stage-02`):
 
 ```
 stage-02   expected 19, crawled 32   0 missing, 13 extra   stopped: max_pages
@@ -260,10 +270,12 @@ changed, and `git show stage-05` carries the reasoning in the tag message.
 Not a crawler you should use. Scrapy is more capable, better tested and free,
 and `docs/stage-10.md` makes that case with numbers rather than modesty.
 
-There is no storage layer: pages are fetched, classified and counted, never
-written anywhere. No WARC output, no index, no extraction schema. The corpus is
-synthetic, so nothing here has met a real site's malformed markup, hostile
-rate limiting or TLS quirks.
+Stage 11 added storage, but only the first half of it: the WARC is replayable
+and validated by `warcio`, yet not byte-exact provenance — httpx has already
+decoded the response by the time `fetch` returns, so the wire bytes are gone.
+There is no CDX index, so finding a record means scanning the file, and nothing
+reads the store back into a crawl. The corpus is synthetic, so nothing here has
+met a real site's malformed markup, hostile rate limiting or TLS quirks.
 
 It is a teaching artifact with a test suite, and the claim it makes is narrow:
 every idea in it was built, measured against declared ground truth, and written

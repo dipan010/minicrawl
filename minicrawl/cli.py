@@ -16,6 +16,8 @@ from .crawler import CrawlConfig, Page, crawl
 from .dedup import DuplicateIndex
 from .freshness import FreshnessStore
 from .render import PlaywrightRenderer
+from .store import ContentStore
+from .warc import WarcWriter
 from .traps import TrapGuard
 
 MANIFEST = Path(__file__).resolve().parent.parent / "testsite" / "manifest.json"
@@ -49,6 +51,20 @@ def report(result) -> None:
         print(f"  rendered    {len(result.rendered_pages)} of {len(result.pages)} pages "
               f"({share:.0f}%) in {result.render_seconds:.1f}s "
               f"vs {result.fetch_seconds:.1f}s of fetching")
+    if result.stored_records:
+        saved = result.bytes_deduplicated
+        print(f"  stored      {result.stored_objects} objects for "
+              f"{result.stored_records} URLs — {result.bytes_stored:,} bytes written, "
+              f"{saved:,} deduplicated")
+    if result.store_refusals or result.warc_refusals:
+        merged = dict(result.store_refusals)
+        for why, n in result.warc_refusals.items():
+            merged[why] = max(merged.get(why, 0), n)
+        reasons = ", ".join(f"{n} {why}" for why, n in sorted(merged.items()))
+        print(f"  not stored  {reasons}")
+    if result.warc_records:
+        print(f"  warc        {result.warc_records} records, "
+              f"{result.warc_bytes:,} bytes gzipped")
     if result.rejected_by_traps:
         reasons = ", ".join(f"{n} {why}" for why, n in
                             sorted(result.rejected_by_traps.items()))
@@ -118,6 +134,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="share the frontier across processes via Redis")
     ap.add_argument("--redis-prefix", default="mc",
                     help="key prefix, so two crawls can share one Redis")
+    ap.add_argument("--store", metavar="DIR",
+                    help="content-addressed store: one object per distinct body")
+    ap.add_argument("--warc", metavar="PATH",
+                    help="write a gzip-member WARC 1.1 archive")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--verify", action="store_true",
                     help="diff the crawl against testsite/manifest.json")
@@ -134,6 +154,8 @@ def main(argv: list[str] | None = None) -> int:
         renderer=PlaywrightRenderer() if args.render else None,
         read_sitemaps=args.sitemaps, priority_frontier=args.priority,
         redis_url=args.redis, redis_prefix=args.redis_prefix,
+        store=ContentStore(args.store) if args.store else None,
+        warc=WarcWriter(args.warc) if args.warc else None,
         freshness=FreshnessStore(args.freshness) if args.freshness else None,
         on_page=None if args.quiet else print_page,
     )

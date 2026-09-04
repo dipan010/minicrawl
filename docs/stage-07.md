@@ -75,8 +75,8 @@ non-browser crawl cannot, which is what makes the browser crawl finding it
 mean something.
 
 The manifest gained `expected_pages_rendered`: the same 19 pages plus that
-one. (`/volatile` arrived at stage 8 and took both counts up by one, so at
-`HEAD` these read 20 and 21.)
+one. (The corpus has grown since: `/volatile` at stage 8 and `/compressed`
+at stage 11, so at `HEAD` these read 21 and 22.)
 Ground truth now describes two crawl configurations, and each is asserted
 against the one that applies to it.
 
