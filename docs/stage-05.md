@@ -5,6 +5,10 @@
 **Verify:** `uv run pytest tests/test_stage05_normalize_persist.py -q` (27 tests)
 **Flipped:** both remaining characterisation tests
 
+> **Corpus size at this tag:** ground truth was 19 pages here. `/volatile`
+> arrived at stage 8 and took it to 20, so the figures below reproduce at
+> this stage's tag, not at `HEAD`.
+
 ```
 expected 19 pages, crawled 24 on 127.0.0.1:8081
 bounded     5 trap pages under /gen/ — capped, not excluded

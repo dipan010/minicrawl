@@ -20,6 +20,10 @@ FIFO makes the crawl breadth-first — shallow and broad rather than tunnelling
 down one path. A heap instead of a deque turns it into priority crawling
 (stage 8).
 
+> **Corpus size at this tag:** ground truth was 19 pages here. `/volatile`
+> arrived at stage 8 and took it to 20, so the figures below reproduce at
+> this stage's tag, not at `HEAD`.
+
 ## The result
 
 ```

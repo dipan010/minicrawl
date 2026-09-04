@@ -74,7 +74,9 @@ amount of HTTP-level cleverness reaches it — the control test asserts that the
 non-browser crawl cannot, which is what makes the browser crawl finding it
 mean something.
 
-The manifest gained `expected_pages_rendered`: the same 19 pages plus that one.
+The manifest gained `expected_pages_rendered`: the same 19 pages plus that
+one. (`/volatile` arrived at stage 8 and took both counts up by one, so at
+`HEAD` these read 20 and 21.)
 Ground truth now describes two crawl configurations, and each is asserted
 against the one that applies to it.
 
