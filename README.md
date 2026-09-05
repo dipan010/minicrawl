@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Eleven stages, eleven tags, 173 tests. Each stage is a git tag, a rationale note in
+Twelve stages, twelve tags, 194 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 
@@ -37,6 +37,7 @@ against the ground-truth manifest.
 | 9 ✅ | `frontier/redis.py` | Distributed coordination, leases, shared politeness |
 | 10 ✅ | `scrapy_port/`, `scripts/compare_frameworks.py` | What the framework actually buys you |
 | 11 ✅ | `store.py`, `warc.py` | Content addressing, WARC archives, provenance |
+| 12 ✅ | `cdx.py`, `replay.py` | SURT, binary search on disk, replay with the origin gone |
 
 ## Run it
 
@@ -81,6 +82,14 @@ uv run python scripts/distributed_demo.py 3
 # keep what it fetches: 23 objects for 27 URLs, plus a replayable archive
 uv run minicrawl http://127.0.0.1:8081/ --store ./store --warc ./crawl.warc.gz
 
+# index the archive, then kill the server and re-extract every link offline
+uv run minicrawl http://127.0.0.1:8081/ --warc ./c.warc.gz --cdx ./c.cdxj
+pkill -f testsite.server
+uv run python -c "
+from minicrawl.replay import ArchiveReplay
+r = ArchiveReplay('c.warc.gz', 'c.cdxj')
+print(sum(len(r.links(u) or []) for u in r.urls()), 'links, nothing listening')"
+
 # the punchline: this crawler vs Scrapy, same corpus, every number measured
 uv run python scripts/compare_frameworks.py
 
@@ -106,6 +115,8 @@ minicrawl/            the crawler
   sitemap.py          index and urlset, tolerant of malformed XML
   store.py            content-addressed objects, and an index over them
   warc.py             WARC 1.1 archives, one gzip member per record
+  cdx.py              SURT keys, sorted CDXJ, binary search over the file
+  replay.py           seek to a record, re-extract with no network
   crawler.py          the loop, and the worker pool over it
   cli.py              the command line
   frontier/
@@ -169,6 +180,7 @@ minicrawl SEED [SEED ...] [options]
 | `--redis [URL]`, `--redis-prefix` | share the frontier across processes | 9 |
 | `--store DIR` | content-addressed store: one object per distinct body | 11 |
 | `--warc PATH` | write a gzip-member WARC 1.1 archive | 11 |
+| `--cdx PATH` | write a sorted CDXJ index of that archive | 12 |
 | `--quiet` | suppress the per-page log | — |
 
 The `--no-*` flags exist so each stage's contribution can be switched off and
@@ -270,12 +282,14 @@ changed, and `git show stage-05` carries the reasoning in the tag message.
 Not a crawler you should use. Scrapy is more capable, better tested and free,
 and `docs/stage-10.md` makes that case with numbers rather than modesty.
 
-Stage 11 added storage, but only the first half of it: the WARC is replayable
-and validated by `warcio`, yet not byte-exact provenance — httpx has already
-decoded the response by the time `fetch` returns, so the wire bytes are gone.
-There is no CDX index, so finding a record means scanning the file, and nothing
-reads the store back into a crawl. The corpus is synthetic, so nothing here has
-met a real site's malformed markup, hostile rate limiting or TLS quirks.
+Stages 11 and 12 give it an archive it can write, index and read back — but
+not byte-exact provenance: httpx has already decoded the response by the time
+`fetch` returns, so the wire bytes are gone, and the record says so rather than
+pretending otherwise. A repeat capture of an unchanged page still writes a full
+response record instead of a WARC `revisit` pointing at the first, and there is
+no CDX *server* — the index is a file and a library, not an endpoint. The
+corpus is synthetic, so nothing here has met a real site's malformed markup,
+hostile rate limiting or TLS quirks.
 
 It is a teaching artifact with a test suite, and the claim it makes is narrow:
 every idea in it was built, measured against declared ground truth, and written

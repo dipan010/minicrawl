@@ -17,6 +17,7 @@ from .dedup import DuplicateIndex
 from .freshness import FreshnessStore
 from .render import PlaywrightRenderer
 from .store import ContentStore
+from .cdx import write_cdxj
 from .warc import WarcWriter
 from .traps import TrapGuard
 
@@ -138,10 +139,14 @@ def main(argv: list[str] | None = None) -> int:
                     help="content-addressed store: one object per distinct body")
     ap.add_argument("--warc", metavar="PATH",
                     help="write a gzip-member WARC 1.1 archive")
+    ap.add_argument("--cdx", metavar="PATH",
+                    help="write a sorted CDXJ index of the WARC (needs --warc)")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--verify", action="store_true",
                     help="diff the crawl against testsite/manifest.json")
     args = ap.parse_args(argv)
+    if args.cdx and not args.warc:
+        ap.error("--cdx indexes a WARC; pass --warc too")
 
     config = CrawlConfig(
         seeds=args.seeds, max_pages=args.max_pages, max_depth=args.max_depth,
@@ -174,6 +179,11 @@ def main(argv: list[str] | None = None) -> int:
           f"{result.duration:.2f}s, {result.worker_seconds_waiting:.1f} worker-s waiting "
           f"— stopped: {result.stopped_because}")
     report(result)
+    if args.cdx:
+        # After the crawl: `crawl` closes the writer, and an index written
+        # before the last record lands is an index that lies.
+        n = write_cdxj(config.warc.index, args.cdx)
+        print(f"  cdx         {n} lines -> {args.cdx}")
     if args.verify:
         return verify(result, urlsplit(args.seeds[0]).netloc)
     return 0

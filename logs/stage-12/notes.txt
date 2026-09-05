@@ -1,0 +1,126 @@
+STAGE 12 — CDX INDEX AND REPLAY
+===============================
+
+GOAL
+----
+Make the archive from stage 11 usable. Two capabilities:
+  1. Find one record among many without scanning the file.
+  2. Read the archive back into the crawler's own parser, offline.
+
+Stage 11's headline claim — one gzip member per record makes the file
+seekable — was never exercised. This stage spends it or admits it was decoration.
+
+
+STEPS TAKEN
+-----------
+1. Straightened WarcWriter before adding anything. `_write_record` had a
+   special case choosing `self._handle` for warcinfo and `self._open()`
+   otherwise, guarding against a recursion that cannot happen: `_open` sets
+   `_handle` before writing warcinfo, so the nested call returns immediately.
+   Removed the special case; `_write_record` now returns (offset, length).
+2. Cross-checked every offset against `warcio index` — 6/6 records agreed and
+   the offsets chained contiguously.
+3. Wrote minicrawl/cdx.py: SURT, CdxRecord, sorted CDXJ writer, and a
+   CdxIndex that binary-searches the FILE by seeking to byte midpoints.
+4. Wrote minicrawl/replay.py: WarcReader.read_at(offset, length) seeking to a
+   single gzip member, and ArchiveReplay re-extracting links offline.
+5. Collected the index inside WarcWriter at write time — the only place that
+   knows an offset.
+6. Added --cdx to the CLI, rejected without --warc, written after the crawl
+   closes the writer.
+7. 21 tests, then the full suite: 194 passing.
+8. End-to-end: crawled the corpus, killed the server, replayed 27 records and
+   re-extracted 68 links with nothing listening on 8081.
+
+
+CONCEPTS APPLIED
+----------------
+- SURT (Sort-friendly URI Reordering Transform): reversed host labels make a
+  domain contiguous in a sorted file, so a range query is a forward scan.
+- IP literals are not hierarchies: 127.0.0.1 must not become 1,0,0,127.
+- Sorted flat index vs hash map: sorting buys search-without-loading and range
+  queries; a hash buys neither.
+- Binary search over bytes, not over elements: seek to a midpoint, realign to
+  a newline, recurse on a half. Memory is one line at any file size.
+- Monotone predicate as the loop invariant: key(first line after p) >= target
+  is monotone in p, which is what makes the byte-wise search correct.
+- Seekable gzip: a member is a complete stream; offset+length decompresses
+  alone. This is stage 11's framing decision being cashed in.
+- Content-Length is authoritative when reading a record; scanning for the
+  terminating blank line truncates any body containing one.
+- Independent validation: warcio, which knows nothing about this project.
+- Replay is not a fetch path — archived bytes into the existing parser, and
+  nothing else.
+
+
+CONCEPT -> CODE MAP
+-------------------
+SURT                          minicrawl/cdx.py :: surt()
+  IP literals left alone      minicrawl/cdx.py :: surt(), the ipaddress branch
+  port kept in the key        minicrawl/cdx.py :: surt(), `port` term
+CDXJ line format              minicrawl/cdx.py :: CdxRecord.to_line/from_line
+sorted output = the index     minicrawl/cdx.py :: write_cdxj()
+binary search over the file   minicrawl/cdx.py :: CdxIndex._seek_lower_bound()
+  proof it is not a scan      minicrawl/cdx.py :: CdxIndex.lines_read
+range query                   minicrawl/cdx.py :: CdxIndex.prefix()
+offset reporting              minicrawl/warc.py :: WarcWriter._write_record()
+index collected at write time minicrawl/warc.py :: WarcWriter.index
+seek to one gzip member       minicrawl/replay.py :: WarcReader.read_at()
+record parsing by length      minicrawl/replay.py :: WarcReader._parse()
+decoded-body marker           minicrawl/replay.py :: ArchivedResponse.decoded_by_crawler
+offline re-extraction         minicrawl/replay.py :: ArchiveReplay.links()
+CLI                           minicrawl/cli.py :: --cdx
+
+
+WHAT BROKE
+----------
+1. THE BINARY SEARCH LOST ONE KEY IN TWO HUNDRED.
+   `low` advanced to `handle.tell()` — past the line just examined — instead
+   of `middle + 1`. When the target was the very next line, the search stepped
+   over it. Every spot check passed; looking up all 1000 keys found `p00004`
+   missing. Fix: advance to `middle + 1`, and realign to a line boundary once
+   after the loop.
+   Lesson repeated from stage 5, 8 and 9: a missing thing looks like nothing
+   at all. Only an exhaustive diff against declared expectations finds it.
+
+2. "IS IT A BINARY SEARCH?" IS NOT ANSWERED BY THE RIGHT ANSWER.
+   A linear scan returns the same record. The algorithm is only pinned by
+   asserting how much of the file was read — hence `lines_read` and
+   `test_lookup_reads_a_handful_of_lines_not_the_file`.
+
+3. A DEAD SERVER IS A WEAKER TEST THAN A DEAD SOCKET.
+   Killing the corpus server leaves the test passable by accident if a stale
+   server holds the port — which has bitten this project before (stage 11's
+   /compressed 404). Poisoning socket.connect cannot be satisfied by anything
+   but not using the network.
+
+4. THE FIRST FULL-SUITE RUN SHOWED 35 FAILURES.
+   Self-inflicted: a `pkill -f testsite.server` for the replay demo killed the
+   server the background suite was using. Re-run clean: 194 passed.
+
+
+HOW TO VERIFY
+-------------
+  uv run pytest tests/test_stage12_cdx.py -q          # 21 tests
+
+  # offsets agree with an independent tool
+  uv run python -m warcio.cli index -f offset,length,warc-type out.warc.gz
+
+  # the whole point, end to end
+  uv run python -m testsite.server --ports 8081 &
+  uv run minicrawl http://127.0.0.1:8081/ --quiet --warc out.warc.gz --cdx out.cdxj
+  pkill -f testsite.server
+  uv run python -c "
+from minicrawl.replay import ArchiveReplay
+r = ArchiveReplay('out.warc.gz', 'out.cdxj')
+print(sum(len(r.links(u) or []) for u in r.urls()), 'links, no server running')"
+
+
+STATE AFTER THIS STAGE
+----------------------
+- 194 tests passing.
+- The archive is readable, seekable and independently validated.
+- A crawl can be replayed and re-extracted with the origin gone.
+- Still absent: a CDX server (a web-framework exercise), compressed ZipNum
+  indexes, and revisit records — a repeat capture of an unchanged page still
+  writes a full response record rather than a `revisit` pointing at the first.

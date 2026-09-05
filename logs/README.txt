@@ -36,9 +36,11 @@ THE STAGES
   09  distributed frontier                   atomic dedup, leases, shared clocks
   10  the framework comparison               what Scrapy buys, and what it does not
   11  storage                                content addressing, WARC, provenance
+  12  CDX index and replay                   SURT, binary search on disk, offline
 
 Where the WHAT BROKE sections are worth reading on their own: 05 (a
 normalisation rule that invented 404s), 06 (a degenerate corpus that broke
 simhash, and a finally block that recorded work never done), 08 (conditional
 GET blinding the crawl), 10 (two framework hooks that failed in total silence),
-11 (a corpus that could not expose the bug the stage was about).
+11 (a corpus that could not expose the bug the stage was about), 12 (a binary
+search that lost one key in two hundred while every spot check passed).

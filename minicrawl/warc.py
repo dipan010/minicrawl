@@ -53,6 +53,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .cdx import CdxRecord, surt
+
 WARC_VERSION = b"WARC/1.1"
 CRLF = b"\r\n"
 SOFTWARE = "minicrawl/0.1 (https://example.invalid/minicrawl)"
@@ -110,6 +112,10 @@ class WarcWriter:
         self.records = 0
         self.bytes_written = 0
         self.refusals: dict[str, int] = {}
+        # The index is collected HERE because this is the only place that knows
+        # an offset. Building it in a later pass would mean re-reading the
+        # whole archive to learn something we held and dropped.
+        self.index: list[CdxRecord] = []
 
     # -- record framing ----------------------------------------------------
     def _open(self):
@@ -124,7 +130,14 @@ class WarcWriter:
         return self._handle
 
     def _write_record(self, warc_type: bytes, headers: dict[bytes, bytes],
-                      block: bytes) -> None:
+                      block: bytes) -> tuple[int, int]:
+        """Write one record; return its (offset, length) in the file.
+
+        Those two numbers are the entire point of the CDX index in stage 12: a
+        reader seeks to `offset`, reads `length` bytes, and hands that to a
+        gzip decoder. They are only meaningful because each record is its own
+        member — the framing choice made here and cashed in there.
+        """
         head = [WARC_VERSION,
                 b"WARC-Type: " + warc_type,
                 b"WARC-Record-ID: " + record_id().encode(),
@@ -139,14 +152,24 @@ class WarcWriter:
 
         # One gzip member per record, so the file is seekable record by record.
         member = gzip.compress(raw, mtime=0)
-        handle = self._handle if warc_type == b"warcinfo" else self._open()
+        # `_open` is idempotent and sets `_handle` BEFORE writing the warcinfo
+        # record, so this call is a no-op during that write rather than a
+        # recursion — which is why no special case for warcinfo is needed.
+        handle = self._open()
+        offset = handle.tell()
         handle.write(member)
         self.records += 1
         self.bytes_written += len(member)
+        return offset, len(member)
 
     # -- the public surface ------------------------------------------------
-    def write_response(self, fetched) -> str | None:
-        """Archive one response. Returns the reason it was refused, or None."""
+    def write_response(self, fetched) -> tuple[int, int] | str:
+        """Archive one response.
+
+        Returns `(offset, length)` on success, or the string reason it was
+        refused. A caller that wants only the refusal can test
+        `isinstance(result, str)`.
+        """
         if fetched.not_modified:
             return self._refuse("not_modified")     # no body to archive
         if fetched.error or not fetched.ok:
@@ -169,8 +192,14 @@ class WarcWriter:
             # field is legal in WARC and is the honest place for it.
             headers[b"X-Minicrawl-Decoded"] = fetched.headers[
                 "content-encoding"].encode()
-        self._write_record(b"response", headers, block)
-        return None
+        offset, length = self._write_record(b"response", headers, block)
+        self.index.append(CdxRecord(
+            key=surt(fetched.final_url),
+            timestamp=datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
+            url=fetched.final_url, mime=fetched.content_type or "",
+            status=fetched.status, digest=sha256_field(fetched.body),
+            offset=offset, length=length, filename=self.path.name))
+        return offset, length
 
     def _refuse(self, reason: str) -> str:
         self.refusals[reason] = self.refusals.get(reason, 0) + 1
