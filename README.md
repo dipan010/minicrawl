@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Twelve stages, twelve tags, 194 tests. Each stage is a git tag, a rationale note in
+Twelve stages, twelve tags, 197 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 

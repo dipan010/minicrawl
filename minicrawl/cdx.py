@@ -95,14 +95,39 @@ class CdxRecord:
         return (self.key, self.timestamp)
 
 
-def write_cdxj(records, path: str | Path) -> int:
-    """Write a sorted CDXJ file. Sorting is not tidiness — it is the index."""
+def write_cdxj(records, path: str | Path, *, merge: bool = True) -> int:
+    """Write a sorted CDXJ file, merging into one that already exists.
+
+    Sorting is not tidiness — it IS the index; a file out of order makes every
+    binary search wrong rather than slow.
+
+    Merging is not a convenience either. The WARC is opened for append, so a
+    second crawl into the same archive adds records after the first crawl's.
+    Truncating the index there would leave those earlier records in the file
+    and unreachable — present, paid for, and invisible. Holding several
+    captures of one URL over time is the reason CDX exists at all, so losing
+    them on the second run would break the format's entire purpose.
+
+    Because the whole file must stay sorted, this rewrites rather than appends.
+    That is fine at this scale and is exactly what does not scale: a real
+    indexer sorts externally, or derives the index by scanning the WARC. Noted
+    as not-built rather than pretended.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    ordered = sorted(records, key=lambda r: r.sort_key)
+
+    lines = {record.to_line() for record in records}
+    if merge and path.exists():
+        # A record identical in every field is the same capture re-indexed,
+        # not a second visit — dedupe on the whole line so re-running an
+        # indexer is idempotent while a genuine recapture still lands.
+        lines |= {line for line in path.read_text(encoding="utf-8").splitlines()
+                  if line}
+
+    ordered = sorted(lines, key=lambda line: line.split(" ", 2)[:2])
     with path.open("w", encoding="utf-8") as handle:
-        for record in ordered:
-            handle.write(record.to_line() + "\n")
+        for line in ordered:
+            handle.write(line + "\n")
     return len(ordered)
 
 
@@ -184,6 +209,12 @@ class CdxIndex:
                 found.append(CdxRecord.from_line(line.decode()))
         return found
 
-    def __len__(self) -> int:
+    def count_lines(self) -> int:
+        """How many captures the index holds — by SCANNING it.
+
+        Deliberately not `__len__`: this is the operation the whole class
+        exists to avoid, and it is here for tests and reporting only. Making
+        it look like a cheap builtin would invite it into a lookup path.
+        """
         with self.path.open("rb") as handle:
             return sum(1 for _ in handle)

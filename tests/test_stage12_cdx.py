@@ -291,12 +291,88 @@ def test_every_archived_url_is_findable_through_the_index(archived):
         assert replay.fetch(url) is not None, f"{url} indexed but not readable"
 
 
-def test_volatile_is_excluded_by_construction_not_by_exception(archived):
+def test_the_archive_is_a_snapshot_even_for_a_page_that_always_changes(archived):
     """`/volatile` changes on every request, so an archived copy and a fresh
-    fetch cannot agree. The comparison above compares link COUNTS between the
-    live crawl and the archive of that same crawl — one capture, compared with
-    itself — rather than archive against a new fetch. That is why no exception
-    list is needed, and this test exists to keep it that way."""
+    fetch can never agree. That is why the comparison above is between the live
+    crawl and the archive OF THAT SAME CRAWL — one capture compared with
+    itself — rather than archive against a new fetch: the exclusion is
+    structural, not an exception list bolted on after a test went red.
+
+    What the archive owes is that a capture stops changing once written. Read
+    the same record twice and the bytes must be identical, where two live
+    fetches would differ."""
     _, replay = archived
-    got = replay.fetch(f"http://{HOST}/volatile")
-    assert got is None or got.status == 200
+    first = replay.fetch(f"http://{HOST}/volatile")
+    assert first is not None, "the crawl saw /volatile, so the archive must hold it"
+    assert replay.fetch(f"http://{HOST}/volatile").body == first.body
+
+
+# --- crawling twice into one archive --------------------------------------
+
+def test_a_second_crawl_does_not_erase_the_first_from_the_index(tmp_path):
+    """The WARC is opened for append, so a second crawl adds records after the
+    first crawl's. An index written with `w` would truncate, leaving those
+    earlier records in the file and unreachable — present, paid for, and
+    invisible. The unit tests above pass with hand-built records either way;
+    only the real path shows it.
+    """
+    import asyncio
+    warc_path, cdx_path = tmp_path / "c.warc.gz", tmp_path / "c.cdxj"
+    counts = []
+    for _ in range(2):
+        writer = WarcWriter(warc_path)
+        asyncio.run(crawl(CrawlConfig(seeds=[SEED], max_pages=8, max_depth=2,
+                                      warc=writer, on_page=None)))
+        counts.append(write_cdxj(writer.index, cdx_path))
+
+    index = CdxIndex(cdx_path)
+    assert counts[1] > counts[0], "the second crawl replaced the index"
+    assert index.count_lines() == counts[1]
+    # And every record in the merged index still resolves in the archive.
+    replay = ArchiveReplay(warc_path, cdx_path)
+    for record in index.prefix(""):
+        assert replay.reader.read(record).url == record.url
+
+
+def test_re_indexing_the_same_records_is_idempotent(tmp_path):
+    """Merging must not turn a re-run of the indexer into duplicate captures."""
+    path = tmp_path / "i.cdxj"
+    records = [CdxRecord(surt(f"http://{HOST}/a"), "20260101000000",
+                         f"http://{HOST}/a", "text/html", 200, "sha256:x",
+                         0, 10, "a.warc.gz")]
+    assert write_cdxj(records, path) == 1
+    assert write_cdxj(records, path) == 1
+
+
+# --- what this stage does NOT do ------------------------------------------
+
+def test_characterises_no_revisit_records_for_an_unchanged_recapture(archived):
+    """A repeat capture of an UNCHANGED page writes a whole second response
+    record: same payload digest, same bytes, stored twice.
+
+    WARC has a `revisit` record for exactly this — a stub pointing at the
+    original capture — and it is how real archives avoid storing the
+    unchanging web over and over. `store.py` already deduplicates by content
+    address, so the crawler knows the body is identical; the archive is the
+    part that does not act on it.
+
+    This test asserts the shortcoming so it fails when a revisit-record stage
+    lands. Flipping it is the definition of that stage being done.
+    """
+    live, replay = archived
+    by_digest = {}
+    for record in replay.index.prefix(""):
+        by_digest.setdefault((record.url, record.digest), []).append(record)
+    repeats = [group for group in by_digest.values() if len(group) > 1]
+    assert repeats, "the corpus stopped producing a repeat capture"
+
+    for group in repeats:
+        offsets = {record.offset for record in group}
+        assert len(offsets) == len(group), "same offset — this is one record, not two"
+        bodies = {replay.reader.read(record).body for record in group}
+        assert len(bodies) == 1, "identical digests must mean identical bodies"
+        # Every one of them is a full response, not a revisit stub.
+        for record in group:
+            got = replay.reader.read(record)
+            assert got.warc_headers["warc-type"] == "response"
+            assert len(got.body) > 0

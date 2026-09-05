@@ -83,6 +83,31 @@ pair is compared against it, not a spot check — an error in the warcinfo
 record's own offset shifts nothing after it, so checking only the first hit
 would pass while the file was wrong.
 
+## The index truncated the previous crawl
+
+Found by review after the stage was tagged, and it is the same shape as
+stages 5, 8 and 9: something absent, which looks like nothing at all.
+
+`WarcWriter` opens the archive for append, so a second crawl into the same
+`--warc` adds its records after the first crawl's — offsets stay correct,
+because `tell()` starts at the existing size. `write_cdxj` opened the index
+with `w` and truncated it. Crawl twice and the archive holds 56 response
+records while the index holds 27: the first crawl is still in the file, paid
+for, and unreachable.
+
+The sharp part is that holding several captures of one URL over time is *the
+reason CDX exists*, and `test_repeated_captures_of_one_url_come_back_oldest_first`
+asserts the reader supports it — with hand-built records. Through the CLI the
+second crawl deleted the first crawl's captures. Unit test green, real path
+broken; only a test that runs the actual path could see it.
+
+`write_cdxj` now merges an existing index, deduplicating on the whole line so
+re-indexing is idempotent while a genuine recapture still lands. Because the
+file must stay sorted end to end, it rewrites rather than appends — fine at
+this scale, and precisely what does not scale. A real indexer sorts externally
+or derives the index by scanning the WARC; that is named as not-built rather
+than pretended.
+
 ## Replay, with the server dead
 
 The headline test crawls the live corpus, then poisons `socket.connect` and
@@ -115,6 +140,12 @@ blank line in the body that fails if that is ever "simplified".
   the thing under test.
 - **A CDX server.** The wire protocol (`/cdx?url=...&matchType=prefix`) is a
   web framework exercise, not a crawling one.
+- **`revisit` records.** A repeat capture of an unchanged page writes a whole
+  second response record — same payload digest, same bytes, stored twice. WARC
+  has a `revisit` record for exactly this, and `store.py` already knows the
+  body is identical by content address; the archive is the part that does not
+  act on it. `test_characterises_no_revisit_records_for_an_unchanged_recapture`
+  asserts the shortcoming so it fails when that stage lands.
 - **Compressed indexes (ZipNum).** Real archives gzip the index in blocks with
   a second-level index over it. It is the same idea applied twice, and adding
   it would obscure the idea being taught.

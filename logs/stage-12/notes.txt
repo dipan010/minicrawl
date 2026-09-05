@@ -60,6 +60,7 @@ SURT                          minicrawl/cdx.py :: surt()
   port kept in the key        minicrawl/cdx.py :: surt(), `port` term
 CDXJ line format              minicrawl/cdx.py :: CdxRecord.to_line/from_line
 sorted output = the index     minicrawl/cdx.py :: write_cdxj()
+merge across runs             minicrawl/cdx.py :: write_cdxj(merge=True)
 binary search over the file   minicrawl/cdx.py :: CdxIndex._seek_lower_bound()
   proof it is not a scan      minicrawl/cdx.py :: CdxIndex.lines_read
 range query                   minicrawl/cdx.py :: CdxIndex.prefix()
@@ -99,9 +100,35 @@ WHAT BROKE
    server the background suite was using. Re-run clean: 194 passed.
 
 
+5. A SECOND CRAWL ERASED THE FIRST FROM THE INDEX. (found by review, after
+   the stage was tagged)
+   The WARC opens for append; write_cdxj opened the index with "w". Crawl
+   twice into one archive: 56 response records, 27 index lines. The earlier
+   records were still in the file and unreachable.
+   Every unit test passed — they built CdxRecords by hand and never ran two
+   crawls. Multiple captures of one URL over time is the REASON CDX exists,
+   and a test asserted the reader handled it while the writer destroyed it.
+   Fix: write_cdxj merges an existing index, deduplicating on the whole line,
+   rewriting to keep the file sorted end to end. Proved the new test can fail
+   by running it with merge=False: 8 lines for 16 records.
+
+6. A TEST THAT COULD NOT FAIL.
+   `assert got is None or got.status == 200` is true of every possible
+   archive. Replaced with the claim actually worth making about /volatile:
+   read the same record twice and the bytes are identical, where two live
+   fetches would differ. CLAUDE.md says never leave a test that cannot fail;
+   this one was written and shipped in the same stage that quotes the rule.
+
+7. NO CHARACTERISATION TEST — a convention breach, not a bug.
+   Added test_characterises_no_revisit_records_for_an_unchanged_recapture:
+   a repeat capture of an unchanged page writes a full second response record
+   instead of a WARC `revisit` stub. The demo output already showed it — /a at
+   offsets 1085 and 7466 with an identical payload digest.
+
+
 HOW TO VERIFY
 -------------
-  uv run pytest tests/test_stage12_cdx.py -q          # 21 tests
+  uv run pytest tests/test_stage12_cdx.py -q          # 24 tests
 
   # offsets agree with an independent tool
   uv run python -m warcio.cli index -f offset,length,warc-type out.warc.gz
@@ -118,9 +145,11 @@ print(sum(len(r.links(u) or []) for u in r.urls()), 'links, no server running')"
 
 STATE AFTER THIS STAGE
 ----------------------
-- 194 tests passing.
+- 197 tests passing.
 - The archive is readable, seekable and independently validated.
 - A crawl can be replayed and re-extracted with the origin gone.
 - Still absent: a CDX server (a web-framework exercise), compressed ZipNum
-  indexes, and revisit records — a repeat capture of an unchanged page still
-  writes a full response record rather than a `revisit` pointing at the first.
+  indexes, external sort (the index is rewritten whole on merge), and revisit
+  records — a repeat capture of an unchanged page still writes a full response
+  record rather than a `revisit` pointing at the first. The last of those is
+  pinned by a characterisation test and is the obvious next stage.
