@@ -1,0 +1,156 @@
+STAGE 13 — A FRONT END, AND WHAT THE REAL WEB DID TO IT
+=======================================================
+
+GOAL
+----
+Two things, and the second is the real one:
+  1. A browser front end so the crawler can be watched working, by someone who
+     has not read the code.
+  2. Point it at REAL sites. Twelve stages were verified against a corpus this
+     project wrote itself, which is both the strength and the ceiling.
+
+
+STEPS TAKEN
+-----------
+1. Established the constraint that decides the architecture: a browser cannot
+   read another origin's response (CORS), so the crawl runs in Python and the
+   page is a view onto it.
+2. Rejected Flask/FastAPI/aiohttp and Streamlit. Wrote ~120 lines of HTTP on
+   asyncio.start_server: two GET routes, no bodies, no sessions.
+3. Streamed over SSE. Verified the wire format with `curl -N` BEFORE writing
+   any HTML — the failure mode of bad SSE framing is a browser that waits
+   forever and reports nothing.
+4. Plugged into the existing CrawlConfig.on_page hook with queue.put_nowait,
+   leaving the callback synchronous.
+5. Crawled the corpus through the UI. Then five real sites.
+6. Found the charset bug. Added three corpus pages to expose it, regenerated
+   the manifest (21 -> 24 expected pages), then wrote minicrawl/charset.py.
+7. 25 new tests. Full suite 222.
+
+
+CONCEPTS APPLIED
+----------------
+- Same-origin policy / CORS as the reason crawlers are server processes.
+- Server-sent events: one-way streaming over plain HTTP; `data:` + BLANK LINE.
+- EventSource auto-reconnect, and why a stream must end with an explicit
+  terminal event rather than a close.
+- Sync producer, async consumer: a queue between them (same split as stage 4's
+  push/push_nowait).
+- Server-side clamping: a limit the client can raise is not a limit.
+- Capability asymmetry: the CLI may expose --ignore-robots, a public form may
+  not. Who owns the consequences decides who gets the switch.
+- Cancellation as politeness: a viewer who leaves should stop the requests.
+- Character encoding precedence: BOM > HTTP header > meta > UTF-8 > cp1252.
+- STRICT decoding as evidence. errors="replace" honours a lie and hides it.
+- windows-1252 as terminal fallback: it is total, so it cannot fail.
+
+
+CONCEPT -> CODE MAP
+-------------------
+hand-rolled HTTP              minicrawl/web/server.py :: _handle()
+SSE framing                   minicrawl/web/server.py :: _send()
+terminal event                minicrawl/web/server.py :: crawl_events() "done"
+sync->async handoff           minicrawl/web/server.py :: crawl_events(), queue
+explicit wire format          minicrawl/web/server.py :: page_event()
+server-side caps              minicrawl/web/server.py :: MAX_PAGES_CEILING etc
+robots not overridable        minicrawl/web/server.py :: crawl_events(), respect_robots=True
+cancel on disconnect          minicrawl/web/server.py :: crawl_events() finally
+seed scheme validation        minicrawl/web/server.py :: _acceptable()
+the page                      minicrawl/web/index.html
+encoding precedence           minicrawl/charset.py :: decode()
+header charset (raw)          minicrawl/charset.py :: charset_from_header()
+meta charset, head only       minicrawl/charset.py :: charset_from_meta(), META_SCAN_BYTES
+unknown codec names           minicrawl/charset.py :: _usable()
+decision recorded             minicrawl/extract.py :: Extracted.encoding/.encoding_source
+corpus: honest header         testsite/spec.py :: /encoded/latin1
+corpus: header vs meta        testsite/spec.py :: /encoded/mislabelled
+corpus: nothing to trust      testsite/spec.py :: /encoded/undeclared
+serving a charset             testsite/server.py :: Handler.conditional(charset=)
+
+
+WHAT BROKE
+----------
+1. NON-UTF-8 PAGES WERE MOJIBAKE, AND HAD BEEN SINCE STAGE 1.
+   extract.parse handed bytes to the parser, which assumes UTF-8. The corpus
+   is entirely UTF-8, so nothing ever caught it. `Café naïve` -> `Caf� na�ve`.
+
+   WHY IT HID FOR TWELVE STAGES: hrefs are ASCII, so link extraction is
+   unaffected. A wrongly-decoded page still yields exactly the right links and
+   the crawl looks perfect. Only text is destroyed — titles, word counts, and
+   the shingles simhash reads. Stage 6's duplicate detector was comparing
+   corrupted strings and still returning numbers.
+
+   This is the recurring theme at its sharpest. The earlier three (stage 5's
+   finally-block, stage 8's cache, stage 9's lease) were things missing and
+   therefore invisible. This one was invisible because a NEIGHBOURING PART
+   SUCCEEDED and made the whole look healthy.
+
+   Fixed the corpus first, per the rule: three pages, each defeating a
+   different hint, all mojibake before the fix.
+
+2. Fetched.content_type CANNOT CARRY THE CHARSET.
+   fetch.py does `.split(";")[0]`, so it is always "text/html". The charset
+   lives in fetched.headers["content-type"]. Passing the obvious field would
+   have thrown away the single most reliable hint while looking correct.
+
+3. TWO OF MY OWN TESTS WERE WRONG, NOT THE CODE.
+   - "the fallback can never fail" included b"\xff\xfe\x00", which is a UTF-16
+     BOM. Being decoded as UTF-16 is right, not a fallback.
+   - "links survive mojibake" asserted mojibake against the FIXED parser, so
+     it failed by succeeding. Rewritten to simulate the old assume-UTF-8 path
+     explicitly and compare it against the new one.
+
+4. A CRAWL OUTLIVED ITS VIEWER.
+   Closing the tab left the crawl task running, still making requests to
+   someone else's site with nobody watching. Documented as a limitation, then
+   fixed instead: the generator's finally cancels the task. Politeness is not
+   only about rate.
+
+
+WHAT REAL SITES SHOWED
+----------------------
+  en.wikipedia.org       4 pages clean
+  www.gov.uk             4 pages clean
+  httpbin.org            frontier drained at 2
+  rfc-editor.org         4 pages clean
+  news.ycombinator.com   4 pages in 91.5 SECONDS
+
+  The HN number looked like a bug and was the opposite: its robots.txt says
+  `Crawl-delay: 30`, and 3 gaps x 30s = 90. Stage 3's start-to-start delay
+  accounting confirmed from outside the corpus for the first time.
+
+  quotes.toscrape.com: three tag pages flagged near_duplicate. Correct —
+  tag listings differ by a few quotes in an identical shell. A detector tuned
+  on two synthetic pages differing by 2 words in 450 generalised to the web.
+
+  No crashes on any site. The failure was silent corruption, not an exception,
+  which is the more dangerous kind.
+
+
+HOW TO VERIFY
+-------------
+  uv run pytest tests/test_stage13_charset_and_web.py -q     # 25 tests
+
+  # the front end
+  uv run python -m testsite.server &
+  uv run minicrawl-web                  # opens http://127.0.0.1:8000/
+  # then type a real https:// URL into the form
+
+  # the SSE wire format, without a browser
+  curl -N "http://127.0.0.1:8000/crawl?url=https%3A%2F%2Fexample.com%2F&max_pages=3"
+
+  # the bug, before and after
+  uv run python -c "
+from minicrawl.extract import parse
+b = 'café'.encode('windows-1252')
+print(parse(b, 'http://h/').title, '<- no header')
+print(parse(b, 'http://h/', 'text/html; charset=windows-1252').encoding)"
+
+
+STATE AFTER THIS STAGE
+----------------------
+- 222 tests passing. 24 expected pages in the corpus.
+- The crawler has met the real web and been corrected by it.
+- Encoding is decided by a stated precedence and the decision is recorded.
+- Still absent: statistical encoding detection (pinned by a characterisation
+  test), 429/Retry-After backoff, and resuming a stopped crawl from the UI.

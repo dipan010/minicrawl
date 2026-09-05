@@ -339,7 +339,8 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                     continue
 
                 if got.is_html:
-                    found = extract.parse(got.body, got.final_url)
+                    found = extract.parse(got.body, got.final_url,
+                                          got.headers.get("content-type"))
 
                     # Triage on the response we already have: does a browser
                     # have anything to add? Escalate only if it does.
@@ -354,7 +355,8 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                             if html:
                                 # Re-extract from the rendered DOM. Links found
                                 # only after JS ran are the entire point.
-                                found = extract.parse(html.encode(), got.final_url)
+                                found = extract.parse(html.encode(), got.final_url,
+                                                      "text/html; charset=utf-8")
                                 page.rendered = True
                                 result.rendered_pages.append(got.final_url)
 

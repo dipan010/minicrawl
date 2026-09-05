@@ -35,6 +35,9 @@
         "/etag",
         "/volatile",
         "/compressed",
+        "/encoded/latin1",
+        "/encoded/mislabelled",
+        "/encoded/undeclared",
         "/private/secret",
         "/private/public-corner",
         "/gen/1",
@@ -349,6 +352,48 @@
         "content_encoding"
       ]
     },
+    "/encoded/latin1": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Latin-1 caf\u00e9",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "non_utf8"
+      ]
+    },
+    "/encoded/mislabelled": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Mislabelled caf\u00e9",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "non_utf8",
+        "lying_charset"
+      ]
+    },
+    "/encoded/undeclared": {
+      "status": 200,
+      "content_type": "text/html",
+      "title": "Undeclared caf\u00e9",
+      "redirect_to": null,
+      "canonical": null,
+      "declared_links": [
+        "/"
+      ],
+      "flags": [
+        "non_utf8",
+        "lying_charset",
+        "undeclared"
+      ]
+    },
     "/orphan": {
       "status": 200,
       "content_type": "text/html",
@@ -566,6 +611,23 @@
   "content_encoded": [
     "/compressed"
   ],
+  "non_utf8": {
+    "/encoded/latin1": {
+      "charset": "windows-1252",
+      "declares": "windows-1252",
+      "header_declares_charset": true
+    },
+    "/encoded/mislabelled": {
+      "charset": "windows-1252",
+      "declares": "utf-8",
+      "header_declares_charset": true
+    },
+    "/encoded/undeclared": {
+      "charset": "windows-1252",
+      "declares": "utf-8",
+      "header_declares_charset": false
+    }
+  },
   "traps": {
     "/loop/1": "redirect loop \u2014 fixed in stage 5 (normalise + seen-set on redirects)",
     "/gen/1": "unbounded generator \u2014 fixed in stage 5 (byte cap + path-depth cap)",
@@ -586,6 +648,9 @@
     "/dup/exact-2",
     "/dup/near-1",
     "/dup/near-2",
+    "/encoded/latin1",
+    "/encoded/mislabelled",
+    "/encoded/undeclared",
     "/etag",
     "/hosts",
     "/js-only",
@@ -609,6 +674,9 @@
     "/dup/exact-2",
     "/dup/near-1",
     "/dup/near-2",
+    "/encoded/latin1",
+    "/encoded/mislabelled",
+    "/encoded/undeclared",
     "/etag",
     "/hosts",
     "/js-only",
@@ -633,6 +701,9 @@
     "/dup/exact-2",
     "/dup/near-1",
     "/dup/near-2",
+    "/encoded/latin1",
+    "/encoded/mislabelled",
+    "/encoded/undeclared",
     "/etag",
     "/hosts",
     "/js-only",

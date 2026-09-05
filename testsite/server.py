@@ -64,7 +64,9 @@ def render_page(path: str, port: int) -> str:
         parts.append("<nav>" + " ".join(
             f'<a href="{html.escape(h)}">{html.escape(h)}</a>' for h in hrefs) + "</nav>")
 
-    return (f"<!doctype html><html><head><meta charset=utf-8>{''.join(head)}</head>"
+    # A page declares whatever the spec says it declares — including a lie.
+    declared = page.get("declared_charset", page.get("charset", "utf-8"))
+    return (f"<!doctype html><html><head><meta charset={declared}>{''.join(head)}</head>"
             f"<body><h1>{html.escape(title)}</h1>{''.join(parts)}</body></html>")
 
 
@@ -146,14 +148,18 @@ class Handler(BaseHTTPRequestHandler):
         if "raw_bytes" in page:
             return self.send(200, page["raw_bytes"], page["content_type"])
 
-        body = render_page(key, port).encode()
+        # Encode in the charset the page is actually served in, which is not
+        # necessarily the one it declares.
+        charset = page.get("charset", "utf-8")
+        body = render_page(key, port).encode(charset, "replace")
         if page.get("volatile"):
             body = body.replace(b"</body>",
                                 b"<p>request %d</p></body>" % next(VOLATILE_COUNTER))
 
         # Every HTML page is conditionally requestable, which is what real
         # servers do and what makes a second crawl cheap.
-        self.conditional(body, gzipped=bool(page.get("gzip")))
+        self.conditional(body, gzipped=bool(page.get("gzip")),
+                         charset=None if page.get("omit_charset_header") else charset)
 
     def gen(self, path: str, port: int):
         """An unbounded chain of fat pages. A crawler with no caps never finishes."""
@@ -172,7 +178,8 @@ class Handler(BaseHTTPRequestHandler):
         # so the validator is too.
         self.conditional(body)
 
-    def conditional(self, body: bytes, gzipped: bool = False):
+    def conditional(self, body: bytes, gzipped: bool = False,
+                    charset: str | None = "utf-8"):
         """Send HTML, or a 304 if the client already has these exact bytes."""
         extra = {}
         if gzipped:
@@ -188,7 +195,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        self.send(200, body, "text/html; charset=utf-8",
+        # charset=None means the header declares nothing, which is legal and
+        # leaves a decoder with only the document and its own judgement.
+        ctype = "text/html" + (f"; charset={charset}" if charset else "")
+        self.send(200, body, ctype,
                   {"ETag": etag, "Last-Modified": LAST_MODIFIED, **extra})
 
 

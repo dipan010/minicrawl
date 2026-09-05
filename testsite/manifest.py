@@ -135,6 +135,14 @@ def build() -> dict:
                                  if "always_changes" in v.get("flags", [])),
         "content_encoded": sorted(p for p, v in spec.PAGES.items()
                                   if "content_encoding" in v.get("flags", [])),
+        # Served as something other than UTF-8. The declared charset may be a
+        # lie, which is the harder half.
+        "non_utf8": {p: {"charset": v["charset"],
+                         "declares": v.get("declared_charset", v["charset"]),
+                         "header_declares_charset":
+                             not v.get("omit_charset_header", False)}
+                     for p, v in spec.PAGES.items()
+                     if "non_utf8" in v.get("flags", [])},
         "traps": spec.TRAPS,
         # THE headline assertion: a polite, same-host crawl from "/" finds exactly this.
         "expected_pages": expected_pages(primary),

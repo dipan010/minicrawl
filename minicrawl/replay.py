@@ -135,7 +135,10 @@ class ArchiveReplay:
         response = self.fetch(url)
         if response is None or not response.is_html:
             return None
-        return parse(response.body, response.url).links
+        # The archive kept the Content-Type, so replay decodes the page
+        # exactly as the live crawl did — including its charset.
+        return parse(response.body, response.url,
+                     response.headers.get("content-type")).links
 
     def urls(self) -> list[str]:
         return [record.url for record in self.index.prefix("")]

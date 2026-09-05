@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Twelve stages, twelve tags, 197 tests. Each stage is a git tag, a rationale note in
+Thirteen stages, thirteen tags, 222 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 
@@ -38,6 +38,23 @@ against the ground-truth manifest.
 | 10 ✅ | `scrapy_port/`, `scripts/compare_frameworks.py` | What the framework actually buys you |
 | 11 ✅ | `store.py`, `warc.py` | Content addressing, WARC archives, provenance |
 | 12 ✅ | `cdx.py`, `replay.py` | SURT, binary search on disk, replay with the origin gone |
+| 13 ✅ | `web/`, `charset.py` | A browser front end, and the real web finding a twelve-stage bug |
+
+## Watch it work
+
+```bash
+uv run python -m testsite.server &     # the practice corpus
+uv run minicrawl-web                   # opens http://127.0.0.1:8000/
+```
+
+Type a URL — the local corpus, or any real site — and the pages stream in as
+they are fetched. The crawl runs in Python; the browser only watches it, because
+a page cannot read another origin's HTML (CORS), which is the same reason every
+crawler you have used is a server process.
+
+robots.txt is always obeyed there and cannot be switched off from the form. The
+CLI has `--ignore-robots` because a human running it owns the consequences; a
+form on a web page does not.
 
 ## Run it
 
@@ -115,10 +132,14 @@ minicrawl/            the crawler
   sitemap.py          index and urlset, tolerant of malformed XML
   store.py            content-addressed objects, and an index over them
   warc.py             WARC 1.1 archives, one gzip member per record
+  charset.py          BOM, header, meta, then the fallback that cannot fail
   cdx.py              SURT keys, sorted CDXJ, binary search over the file
   replay.py           seek to a record, re-extract with no network
   crawler.py          the loop, and the worker pool over it
   cli.py              the command line
+  web/
+    server.py         asyncio HTTP + server-sent events, no framework
+    index.html        the page: no build step, no dependencies
   frontier/
     base.py           Request, and the Frontier protocol
     scheduling.py     readiness clock, one-per-host guard, termination

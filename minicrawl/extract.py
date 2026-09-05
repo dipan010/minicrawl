@@ -17,6 +17,8 @@ from urllib.parse import urldefrag, urljoin, urlsplit
 
 from selectolax.lexbor import LexborHTMLParser
 
+from .charset import decode
+
 SKIP_SCHEMES = ("mailto:", "javascript:", "tel:", "data:", "#")
 
 
@@ -44,10 +46,27 @@ class Extracted:
     script_bytes: int = 0
     empty_app_root: bool = False
     noscript_hint: bool = False
+    # Stage 13. Recorded rather than inferred, so a wrong guess is visible
+    # instead of showing up later as mojibake nobody can trace.
+    encoding: str = "utf-8"
+    encoding_source: str = "assumed"
 
 
-def parse(body: bytes, base_url: str) -> Extracted:
-    tree = LexborHTMLParser(body)
+def parse(body: bytes, base_url: str,
+          content_type: str | None = None) -> Extracted:
+    """Parse a document.
+
+    `content_type` is the RAW header, parameters included — `text/html;
+    charset=windows-1252`, not `text/html`. `Fetched.content_type` has already
+    split the parameters off, so the charset must come from
+    `fetched.headers["content-type"]`. Passing the stripped value silently
+    loses the most reliable hint there is.
+
+    Handing bytes straight to the parser assumes UTF-8, which is what the
+    first twelve stages did — correct for the corpus, wrong for the web.
+    """
+    text, encoding, source = decode(body, content_type)
+    tree = LexborHTMLParser(text)
 
     # <base href> wins over the document URL for every relative link on the page.
     base = base_url
@@ -86,6 +105,8 @@ def parse(body: bytes, base_url: str) -> Extracted:
         script_bytes=script_bytes,
         empty_app_root=empty_app_root,
         noscript_hint=noscript_hint,
+        encoding=encoding,
+        encoding_source=source,
     )
 
 

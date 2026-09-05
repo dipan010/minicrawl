@@ -127,7 +127,9 @@ PAGES: dict[str, dict] = {
             "/a", "/b", "/docs/", "/variants", "/dup/exact-1", "/dup/exact-2",
             "/dup/near-1",
             "/dup/canonical-source", "/r/1", "/loop/1", "/slow", "/js-only",
-            "/etag", "/volatile", "/compressed", "/private/secret",
+            "/etag", "/volatile", "/compressed",
+            "/encoded/latin1", "/encoded/mislabelled", "/encoded/undeclared",
+            "/private/secret",
             "/private/public-corner", "/gen/1",
             "/files/report.pdf", "/hosts",
         ],
@@ -256,6 +258,43 @@ PAGES: dict[str, dict] = {
                     "body": "<p>This page is served with Content-Encoding: gzip, "
                             "so the bytes on the wire are not the bytes you parse.</p>",
                     "links": ["/"], "gzip": True, "flags": ["content_encoding"]},
+
+    # --- character encodings ----------------------------------------------
+    # Everything else in this corpus is UTF-8, which is exactly why the crawler
+    # shipped twelve stages mangling anything that is not. These two are the
+    # cases the real web actually serves.
+    #
+    # The header tells the truth here: Content-Type says windows-1252 and the
+    # bytes are windows-1252. A decoder that assumes UTF-8 produces mojibake
+    # from a page that told it everything it needed.
+    "/encoded/latin1": {"title": "Latin-1 caf\u00e9",
+                        "body": "<p>Na\u00efve r\u00e9sum\u00e9s, \u00a3 and \u00bd, "
+                                "in windows-1252 with an honest header.</p>",
+                        "links": ["/"], "charset": "windows-1252",
+                        "flags": ["non_utf8"]},
+
+    # Header and document DISAGREE: the HTTP header says windows-1252 (true),
+    # the <meta> says UTF-8 (false). WHATWG gives the transport layer the last
+    # word, because the server knows what it just encoded and the document is
+    # only repeating what its author typed.
+    "/encoded/mislabelled": {"title": "Mislabelled caf\u00e9",
+                             "body": "<p>Header says windows-1252, meta says UTF-8. "
+                                     "The header wins: na\u00efve r\u00e9sum\u00e9.</p>",
+                             "links": ["/"], "charset": "windows-1252",
+                             "declared_charset": "utf-8",
+                             "flags": ["non_utf8", "lying_charset"]},
+
+    # NOTHING trustworthy: no charset on the header at all, and the only
+    # declaration in the document is wrong. Every hint the standard offers has
+    # been exhausted, so the decoder has to notice that UTF-8 does not decode
+    # and recover. This is the page that makes the fallback a rule instead of
+    # a comment.
+    "/encoded/undeclared": {"title": "Undeclared caf\u00e9",
+                            "body": "<p>No charset on the header, a wrong one in "
+                                    "the document: na\u00efve r\u00e9sum\u00e9.</p>",
+                            "links": ["/"], "charset": "windows-1252",
+                            "declared_charset": "utf-8", "omit_charset_header": True,
+                            "flags": ["non_utf8", "lying_charset", "undeclared"]},
 
     # --- reachable only from the sitemap ----------------------------------
     # NOTHING links here. A link-following crawl cannot find it at any depth,
