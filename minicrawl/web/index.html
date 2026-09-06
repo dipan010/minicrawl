@@ -119,6 +119,8 @@
         <label for="url">Seed URL</label>
         <input type="url" id="url" required placeholder="https://example.com/"
                value="http://127.0.0.1:8081/" style="width:100%">
+        <select id="site" hidden style="width:100%"></select>
+        <p id="sitehint" hidden style="margin:7px 0 0;font-size:12.5px;color:var(--muted)"></p>
       </div>
       <div><label for="max_pages">Pages</label>
         <input type="number" id="max_pages" value="40" min="1" max="300"></div>
@@ -135,7 +137,7 @@
       <button id="go" type="submit">Crawl</button>
       <button id="stop" type="button" class="ghost" hidden>Stop</button>
     </form>
-    <p class="note">
+    <p class="note" id="note">
       robots.txt is always obeyed and cannot be switched off here — the CLI has
       <code>--ignore-robots</code> because a human running it owns the
       consequences; a form on a web page does not get that option. One request
@@ -177,7 +179,45 @@
 
 <script>
 const $ = id => document.getElementById(id);
-let source = null, state = null, ticker = null;
+let source = null, state = null, ticker = null, config = null;
+
+/* The same page serves a laptop and a public host. Rather than shipping two
+   variants, it asks the server which policy is in force. */
+function seedValue() {
+  return config && config.sites.length ? $("site").value : $("url").value;
+}
+
+fetch("/config").then(r => r.json()).then(c => {
+  config = c;
+  $("max_pages").max = c.max_pages;
+  $("workers").max = c.max_workers;
+  $("delay").min = c.min_delay;
+  if (Number($("max_pages").value) > c.max_pages) $("max_pages").value = c.max_pages;
+  if (Number($("workers").value) > c.max_workers) $("workers").value = c.max_workers;
+  if (Number($("delay").value) < c.min_delay) $("delay").value = c.min_delay;
+
+  if (c.sites.length) {
+    $("url").hidden = true;
+    $("url").required = false;
+    $("site").hidden = false;
+    $("site").innerHTML = c.sites
+      .map(s => `<option value="${esc(s.url)}">${esc(s.url)}</option>`).join("");
+    $("sitehint").hidden = false;
+    const hint = () => {
+      const found = c.sites.find(s => s.url === $("site").value);
+      $("sitehint").textContent = found ? found.label : "";
+    };
+    $("site").addEventListener("change", hint);
+    hint();
+    $("note").innerHTML =
+      'This public demo crawls a <strong>fixed list</strong> of sites that exist to be ' +
+      'crawled. Pointing a hosted crawler at arbitrary URLs turns it into a request ' +
+      'forwarder aimed at whoever a stranger picks, so it does not accept them. ' +
+      'robots.txt is always obeyed, one request per host at a time, at most ' +
+      `${c.max_pages} pages and ${c.min_delay}s between requests. ` +
+      'Run it locally to crawl anything you like.';
+  }
+}).catch(() => {});
 
 function reset() {
   state = { pages: 0, links: 0, unique: 0, dups: 0, errors: 0,
@@ -286,7 +326,7 @@ $("f").onsubmit = e => {
   }, 100);
 
   const q = new URLSearchParams({
-    url: $("url").value, max_pages: $("max_pages").value,
+    url: seedValue(), max_pages: $("max_pages").value,
     max_depth: $("max_depth").value, workers: $("workers").value,
     delay: $("delay").value, same_host: $("same_host").checked ? "1" : "0",
   });

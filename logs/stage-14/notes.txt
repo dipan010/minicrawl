@@ -1,0 +1,111 @@
+STAGE 14 — RUNNING A CRAWLER VERSUS EXPOSING ONE
+================================================
+
+GOAL
+----
+Put the stage 13 front end on the public internet, so anyone can give it a
+link and watch a crawl happen. The code barely changes; what changes is who is
+choosing the target and whose address the requests leave from.
+
+
+STEPS TAKEN
+-----------
+1. Wrote minicrawl/web/policy.py: a Policy object saying what a visitor may
+   ask for. Two instances — LOCAL (anything, loopback included) and PUBLIC
+   (a fixed list, low caps, cooldowns).
+2. SSRF guard: resolve the hostname, reject unless EVERY address it maps to is
+   globally routable.
+3. Rate limiting: server-wide concurrency cap plus a per-visitor cooldown,
+   keyed on X-Forwarded-For since a platform proxy hides the real peer.
+4. Added /config so one page can serve both policies, and /healthz for Render.
+5. Dockerfile + render.yaml. Built the image, ran the container, crawled a
+   real site through it.
+6. The container failed to start — a genuine bug (see WHAT BROKE).
+7. 28 tests. Full suite 250.
+
+
+CONCEPTS APPLIED
+----------------
+- SSRF: "fetch this URL" pointed inward at loopback, RFC1918, and the
+  169.254.169.254 cloud metadata endpoint that hands out credentials.
+- Resolve, do not pattern-match: localtest.me is public and resolves to
+  127.0.0.1, so a string check for "localhost" catches nothing.
+- ip_address.is_global as one predicate for loopback + link-local + private +
+  multicast + reserved + unspecified.
+- Uniform refusals: distinguishing "blocked" from "no such host" is a port
+  scanner.
+- X-Forwarded-For is spoofable — usable for rate buckets, never for access.
+- Fail-safe defaults: PUBLIC is opt-in on an exact "1"; anything else is LOCAL.
+- Capability asymmetry: the CLI keeps --ignore-robots and loopback because the
+  person running it owns the consequences. Limits belong to exposure.
+- Allowlisting as defence in depth, not as the only defence.
+- Optional dependencies must be optional at IMPORT time, not just at use time.
+
+
+CONCEPT -> CODE MAP
+-------------------
+policy object                 minicrawl/web/policy.py :: Policy
+SSRF guard                    minicrawl/web/policy.py :: Policy._resolves_public()
+uniform refusal               minicrawl/web/policy.py :: Policy.check_seed()
+allowlist                     minicrawl/web/policy.py :: DEMO_SITES, PUBLIC
+concurrency + cooldown        minicrawl/web/policy.py :: check_rate/begin/end
+server-side clamping          minicrawl/web/policy.py :: Policy.clamp()
+opt-in, exact "1"             minicrawl/web/policy.py :: from_env()
+policy served to the page     minicrawl/web/server.py :: /config route
+health check                  minicrawl/web/server.py :: /healthz route
+visitor identity              minicrawl/web/server.py :: client_of()
+policy enforced per request   minicrawl/web/server.py :: _stream_crawl()
+page adapts to policy         minicrawl/web/index.html :: fetch("/config")
+optional import guarded       minicrawl/frontier/redis.py :: _require_redis()
+deployment                    Dockerfile, render.yaml, .dockerignore
+
+
+WHAT BROKE
+----------
+1. THE CONTAINER WOULD NOT START — AND NO LOCAL TEST COULD HAVE CAUGHT IT.
+   ModuleNotFoundError: No module named 'redis', from
+   minicrawl/frontier/redis.py line 46, at IMPORT time. frontier/__init__
+   imports RedisFrontier unconditionally, so importing minicrawl required the
+   optional `distributed` extra — and the README's "two core dependencies"
+   was simply untrue.
+
+   It hid for five stages because every machine here has the extra installed.
+   A dependency that is always present cannot be observed to be missing. The
+   corpus could not have exposed this; only a slim environment could.
+
+   Fixed by guarding the import and moving the failure to the point of use,
+   where it names the extra to install. Pinning it required a test that
+   actually removes the module — patching __import__ — because reloading with
+   redis installed asserts nothing. Verified by deleting the guard and
+   watching the test fail.
+
+2. A TEST I WROTE COULD NOT FAIL (again).
+   The first version of that test just reloaded the module and asserted
+   RedisFrontier existed. True with or without the fix. Rewritten as above.
+   Second stage running for this exact mistake; the lesson is that "does the
+   import work" tests are almost always tautologies on a dev machine.
+
+
+HOW TO VERIFY
+-------------
+  uv run pytest tests/test_stage14_public.py -q          # 28 tests
+
+  # the public policy, locally
+  MINICRAWL_PUBLIC=1 uv run python -m minicrawl.web --port 8790 --no-browser
+  curl -s localhost:8790/config
+  curl -sN "localhost:8790/crawl?url=http%3A%2F%2F169.254.169.254%2F"   # refused
+
+  # the container Render will run
+  docker build -t minicrawl-demo .
+  docker run --rm -p 8000:8000 minicrawl-demo
+  curl -s localhost:8000/healthz
+
+
+STATE AFTER THIS STAGE
+----------------------
+- 250 tests passing.
+- The front end can be exposed publicly without becoming a weapon.
+- minicrawl imports with only its two core dependencies, as documented.
+- Still absent: redirect re-validation (an allowlisted site redirecting to a
+  private address is followed by the initial fetch), a queue instead of a busy
+  message, and any authenticated mode.

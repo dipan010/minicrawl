@@ -38,6 +38,7 @@ THE STAGES
   11  storage                                content addressing, WARC, provenance
   12  CDX index and replay                   SURT, binary search on disk, offline
   13  front end, and the real web            SSE, CORS, character encodings
+  14  exposing it safely                     SSRF, rate limits, fail-safe defaults
 
 Where the WHAT BROKE sections are worth reading on their own: 05 (a
 normalisation rule that invented 404s), 06 (a degenerate corpus that broke
@@ -45,4 +46,6 @@ simhash, and a finally block that recorded work never done), 08 (conditional
 GET blinding the crawl), 10 (two framework hooks that failed in total silence),
 11 (a corpus that could not expose the bug the stage was about), 12 (a binary
 search that lost one key in two hundred while every spot check passed), and 13
-(twelve stages of mojibake, hidden because link extraction never noticed).
+(twelve stages of mojibake, hidden because link extraction never noticed), and
+14 (a container that would not start, because an optional dependency had been
+mandatory for five stages and every dev machine had it installed).

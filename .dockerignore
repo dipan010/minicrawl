@@ -1,0 +1,10 @@
+.git
+.venv
+tests
+testsite
+docs
+logs
+scripts
+scrapy_port
+*.sqlite3
+*.warc.gz

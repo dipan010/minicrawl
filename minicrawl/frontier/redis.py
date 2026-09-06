@@ -43,10 +43,26 @@ import socket
 import time
 from collections.abc import Iterable
 
-import redis as redis_lib
+try:
+    import redis as redis_lib
+except ImportError:                     # the `distributed` extra is optional
+    # Importing minicrawl must not require every optional dependency. The
+    # failure belongs at the moment someone asks for a Redis frontier, where
+    # it can say what to install, not at import time on a machine that was
+    # never going to use one.
+    redis_lib = None
 
 from .base import Request
 from .scheduling import SchedulingFrontier, host_of
+
+_MISSING = ("The Redis frontier needs the `distributed` extra: "
+            "uv sync --extra distributed")
+
+
+def _require_redis():
+    if redis_lib is None:
+        raise RuntimeError(_MISSING)
+    return redis_lib
 
 DEFAULT_URL = "redis://127.0.0.1:6379/0"
 LEASE_SECONDS = 60.0
@@ -117,7 +133,7 @@ class RedisFrontier(SchedulingFrontier):
     def __init__(self, politeness, url: str = DEFAULT_URL, prefix: str = "mc",
                  lease_seconds: float = LEASE_SECONDS, client=None):
         super().__init__(politeness)
-        self._r = client if client is not None else redis_lib.Redis.from_url(
+        self._r = client if client is not None else _require_redis().Redis.from_url(
             url, decode_responses=True)
         self._p = prefix
         self._lease = lease_seconds

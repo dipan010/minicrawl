@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Thirteen stages, thirteen tags, 222 tests. Each stage is a git tag, a rationale note in
+Fourteen stages, fourteen tags, 250 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 
@@ -39,6 +39,7 @@ against the ground-truth manifest.
 | 11 ✅ | `store.py`, `warc.py` | Content addressing, WARC archives, provenance |
 | 12 ✅ | `cdx.py`, `replay.py` | SURT, binary search on disk, replay with the origin gone |
 | 13 ✅ | `web/`, `charset.py` | A browser front end, and the real web finding a twelve-stage bug |
+| 14 ✅ | `web/policy.py`, `Dockerfile` | Exposing it publicly: SSRF, rate limits, fail-safe defaults |
 
 ## See it without installing anything
 
@@ -63,7 +64,20 @@ uv run minicrawl-web                   # opens http://127.0.0.1:8000/
 ```
 
 Type a URL — the local corpus, or any real site — and the pages stream in as
-they are fetched. The crawl runs in Python; the browser only watches it, because
+they are fetched.
+
+### Or host it
+
+```bash
+docker build -t minicrawl-demo . && docker run --rm -p 8000:8000 minicrawl-demo
+```
+
+`render.yaml` deploys the same image. A hosted instance runs under a different
+policy from a local one (`MINICRAWL_PUBLIC=1`): it crawls a fixed list of
+sites that exist to be crawled, refuses loopback and private addresses,
+resolves hostnames before trusting them, and rate-limits per visitor. A URL box
+on a public host is a request forwarder aimed at whoever a stranger picks —
+`docs/stage-14.md` is the long version of why. The crawl runs in Python; the browser only watches it, because
 a page cannot read another origin's HTML (CORS), which is the same reason every
 crawler you have used is a server process.
 

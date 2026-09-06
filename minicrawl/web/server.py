@@ -44,15 +44,16 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from ..crawler import CrawlConfig, Page, crawl
 from ..dedup import DuplicateIndex
 from ..traps import TrapGuard
+from .policy import LOCAL, Policy, from_env
 
 HERE = Path(__file__).resolve().parent
 INDEX = HERE / "index.html"
 
-# Caps the form cannot raise. A UI that lets a stranger point this at someone
-# else's site is a UI that needs limits the CLI can leave to judgement.
-MAX_PAGES_CEILING = 300
-MAX_WORKERS_CEILING = 8
-MIN_DELAY = 0.5          # seconds between requests to one host
+# Kept as module constants because the tests and the CLI both read them; the
+# authority on what a given deployment allows is a Policy, not these.
+MAX_PAGES_CEILING = LOCAL.max_pages
+MAX_WORKERS_CEILING = LOCAL.max_workers
+MIN_DELAY = LOCAL.min_delay
 
 
 def page_event(page: Page) -> dict:
@@ -100,7 +101,7 @@ def summary_event(result) -> dict:
 # --- the crawl, as a stream of events --------------------------------------
 
 async def crawl_events(seed: str, max_pages: int, max_depth: int, workers: int,
-                       delay: float, same_host: bool):
+                       delay: float, same_host: bool, policy: Policy = LOCAL):
     """Run a crawl, yielding an event dict per page and a final summary.
 
     `on_page` is SYNCHRONOUS — `crawler._emit` calls it directly, and making it
@@ -110,12 +111,13 @@ async def crawl_events(seed: str, max_pages: int, max_depth: int, workers: int,
     the producer is not allowed to await.
     """
     queue: asyncio.Queue = asyncio.Queue()
+    pages, workers, delay = policy.clamp(max_pages, workers, delay)
     config = CrawlConfig(
         seeds=[seed],
-        max_pages=min(max_pages, MAX_PAGES_CEILING),
+        max_pages=pages,
         max_depth=max_depth,
-        workers=min(workers, MAX_WORKERS_CEILING),
-        default_delay=max(delay, MIN_DELAY),
+        workers=workers,
+        default_delay=delay,
         same_host=same_host,
         # respect_robots is NOT configurable from the browser. The CLI exposes
         # --ignore-robots because a human running it owns the consequences; a
@@ -183,12 +185,16 @@ async def _handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         writer.close()
         return
 
-    while True:                                  # discard headers
+    headers = {}
+    while True:
         line = await reader.readline()
         if line in (b"\r\n", b"\n", b""):
             break
+        name, _, value = line.decode("latin-1").partition(":")
+        headers[name.strip().lower()] = value.strip()
 
     path, _, query = target.partition("?")
+    policy = SERVER_POLICY
     try:
         if method != "GET":
             writer.write(_response("405 Method Not Allowed", "text/plain",
@@ -196,8 +202,16 @@ async def _handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         elif path == "/":
             writer.write(_response("200 OK", "text/html; charset=utf-8",
                                    INDEX.read_bytes()))
+        elif path == "/config":
+            # The page asks what this deployment allows, rather than shipping
+            # two hard-coded variants of itself.
+            writer.write(_response("200 OK", "application/json",
+                                   json.dumps(policy.describe()).encode()))
+        elif path == "/healthz":
+            writer.write(_response("200 OK", "text/plain", b"ok"))
         elif path == "/crawl":
-            await _stream_crawl(writer, parse_qs(query))
+            await _stream_crawl(writer, parse_qs(query),
+                                policy, client_of(writer, headers))
             return
         else:
             writer.write(_response("404 Not Found", "text/plain", b"not found"))
@@ -216,7 +230,23 @@ async def _send(writer: asyncio.StreamWriter, event: str, data: dict) -> None:
     await writer.drain()
 
 
-async def _stream_crawl(writer: asyncio.StreamWriter, params: dict) -> None:
+def client_of(writer: asyncio.StreamWriter, headers: dict) -> str:
+    """Who is asking, for rate limiting.
+
+    Behind a platform proxy every connection appears to come from the proxy, so
+    the first entry of X-Forwarded-For is the visitor. That header is
+    trivially spoofable and is therefore used ONLY to spread rate limits over
+    visitors, never to decide access.
+    """
+    forwarded = headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    peer = writer.get_extra_info("peername")
+    return peer[0] if peer else "unknown"
+
+
+async def _stream_crawl(writer: asyncio.StreamWriter, params: dict,
+                        policy: Policy = LOCAL, client: str = "local") -> None:
     seed = unquote((params.get("url") or [""])[0]).strip()
 
     def number(name, default, cast=int):
@@ -235,17 +265,21 @@ async def _stream_crawl(writer: asyncio.StreamWriter, params: dict) -> None:
                  b"Connection: close\r\n\r\n")
     await writer.drain()
 
+    refusal = policy.check_seed(seed) or policy.check_rate(client)
     try:
-        if not _acceptable(seed):
-            await _send(writer, "failed",
-                        {"error": "Enter an http:// or https:// URL."})
+        if refusal:
+            await _send(writer, "failed", {"error": refusal})
         else:
-            await _send(writer, "started", {"seed": seed})
-            async for kind, data in crawl_events(
-                    seed, number("max_pages", 40), number("max_depth", 3),
-                    number("workers", 4), number("delay", 0.5, float),
-                    (params.get("same_host") or ["1"])[0] != "0"):
-                await _send(writer, kind, data)
+            policy.begin(client)
+            try:
+                await _send(writer, "started", {"seed": seed})
+                async for kind, data in crawl_events(
+                        seed, number("max_pages", 40), number("max_depth", 3),
+                        number("workers", 4), number("delay", 0.5, float),
+                        (params.get("same_host") or ["1"])[0] != "0", policy):
+                    await _send(writer, kind, data)
+            finally:
+                policy.end(client)
     except (ConnectionResetError, BrokenPipeError):
         return                                   # the tab was closed
     except Exception as exc:                     # noqa: BLE001
@@ -260,16 +294,25 @@ async def _stream_crawl(writer: asyncio.StreamWriter, params: dict) -> None:
 
 
 def _acceptable(seed: str) -> bool:
-    parts = urlsplit(seed)
-    return parts.scheme in ("http", "https") and bool(parts.hostname)
+    """Scheme check only — the full decision belongs to a Policy."""
+    return LOCAL.check_seed(seed) is None
+
+
+SERVER_POLICY: Policy = LOCAL
 
 
 async def serve(host: str = "127.0.0.1", port: int = 8000,
-                open_browser: bool = True) -> None:
+                open_browser: bool = True, policy: Policy | None = None) -> None:
+    global SERVER_POLICY
+    SERVER_POLICY = policy or from_env()
     server = await asyncio.start_server(_handle, host, port)
     url = f"http://{host}:{port}/"
     print(f"minicrawl web ui on {url}")
     print("  the crawl runs here in Python; the page only watches it")
+    if SERVER_POLICY.public:
+        print(f"  PUBLIC policy: {len(SERVER_POLICY.allowlist)} allowed sites, "
+              f"max {SERVER_POLICY.max_pages} pages, "
+              f"{SERVER_POLICY.max_concurrent} concurrent crawls")
     if open_browser:
         webbrowser.open(url)
     async with server:
