@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Fourteen stages, fourteen tags, 250 tests. Each stage is a git tag, a rationale note in
+Fifteen stages, fifteen tags, 268 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 
@@ -40,6 +40,7 @@ against the ground-truth manifest.
 | 12 ✅ | `cdx.py`, `replay.py` | SURT, binary search on disk, replay with the origin gone |
 | 13 ✅ | `web/`, `charset.py` | A browser front end, and the real web finding a twelve-stage bug |
 | 14 ✅ | `web/policy.py`, `Dockerfile` | Exposing it publicly: SSRF, rate limits, fail-safe defaults |
+| 15 ✅ | `export.py`, `report.html` | Getting the crawl out: JSONL text, a self-contained report, bundles |
 
 ## Design
 
@@ -280,6 +281,8 @@ minicrawl/            the crawler
   store.py            content-addressed objects, and an index over them
   warc.py             WARC 1.1 archives, one gzip member per record
   charset.py          BOM, header, meta, then the fallback that cannot fail
+  export.py           JSONL of clean text, and a report you can carry away
+  report.html         the report template — system fonts, no network
   cdx.py              SURT keys, sorted CDXJ, binary search over the file
   replay.py           seek to a record, re-extract with no network
   crawler.py          the loop, and the worker pool over it
@@ -349,6 +352,9 @@ minicrawl SEED [SEED ...] [options]
 | `--store DIR` | content-addressed store: one object per distinct body | 11 |
 | `--warc PATH` | write a gzip-member WARC 1.1 archive | 11 |
 | `--cdx PATH` | write a sorted CDXJ index of that archive | 12 |
+| `--export PATH` | one JSON object per page, with clean text (JSONL) | 15 |
+| `--report PATH` | a self-contained HTML report of this crawl | 15 |
+| `--bundle PATH` | zip the report, the text and any archive together | 15 |
 | `--quiet` | suppress the per-page log | — |
 
 The `--no-*` flags exist so each stage's contribution can be switched off and

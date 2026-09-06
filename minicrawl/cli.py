@@ -18,6 +18,7 @@ from .freshness import FreshnessStore
 from .render import PlaywrightRenderer
 from .store import ContentStore
 from .cdx import write_cdxj
+from .export import JsonlExporter, write_bundle, write_report
 from .warc import WarcWriter
 from .traps import TrapGuard
 
@@ -141,12 +142,28 @@ def main(argv: list[str] | None = None) -> int:
                     help="write a gzip-member WARC 1.1 archive")
     ap.add_argument("--cdx", metavar="PATH",
                     help="write a sorted CDXJ index of the WARC (needs --warc)")
+    ap.add_argument("--export", metavar="PATH",
+                    help="write one JSON object per page, with clean text (JSONL)")
+    ap.add_argument("--report", metavar="PATH",
+                    help="write a self-contained HTML report of this crawl")
+    ap.add_argument("--bundle", metavar="PATH",
+                    help="zip the report, the text, and any archive into one file")
+    ap.add_argument("--no-text", action="store_true",
+                    help="with --export, omit page text and keep only metadata")
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--verify", action="store_true",
                     help="diff the crawl against testsite/manifest.json")
     args = ap.parse_args(argv)
     if args.cdx and not args.warc:
         ap.error("--cdx indexes a WARC; pass --warc too")
+    if args.no_text and not args.export:
+        ap.error("--no-text applies to --export")
+
+    # A bundle of nothing is an empty zip, which is a worse answer than saying
+    # so. Give it something to hold.
+    exporter = JsonlExporter(args.export, text=not args.no_text) if args.export else None
+    if args.bundle and not (args.export or args.report or args.warc):
+        ap.error("--bundle needs something to bundle: add --report, --export or --warc")
 
     config = CrawlConfig(
         seeds=args.seeds, max_pages=args.max_pages, max_depth=args.max_depth,
@@ -161,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         redis_url=args.redis, redis_prefix=args.redis_prefix,
         store=ContentStore(args.store) if args.store else None,
         warc=WarcWriter(args.warc) if args.warc else None,
+        exporter=exporter,
         freshness=FreshnessStore(args.freshness) if args.freshness else None,
         on_page=None if args.quiet else print_page,
     )
@@ -179,11 +197,25 @@ def main(argv: list[str] | None = None) -> int:
           f"{result.duration:.2f}s, {result.worker_seconds_waiting:.1f} worker-s waiting "
           f"— stopped: {result.stopped_because}")
     report(result)
+    if exporter is not None:
+        print(f"  export      {exporter.records} pages -> {args.export}")
+    if args.report:
+        write_report(result, args.report, args.seeds)
+        print(f"  report      {args.report}")
     if args.cdx:
         # After the crawl: `crawl` closes the writer, and an index written
         # before the last record lands is an index that lies.
         n = write_cdxj(config.warc.index, args.cdx)
         print(f"  cdx         {n} lines -> {args.cdx}")
+    if args.bundle:
+        written = write_bundle(args.bundle, {
+            "report.html": Path(args.report) if args.report else None,
+            "pages.jsonl": Path(args.export) if args.export else None,
+            "crawl.warc.gz": Path(args.warc) if args.warc else None,
+            "crawl.cdxj": Path(args.cdx) if args.cdx else None,
+        })
+        print(f"  bundle      {written} "
+              f"({written.stat().st_size:,} bytes)")
     if args.verify:
         return verify(result, urlsplit(args.seeds[0]).netloc)
     return 0

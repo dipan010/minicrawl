@@ -1,0 +1,104 @@
+STAGE 15 — GETTING THE CRAWL OUT
+================================
+
+GOAL
+----
+Give the crawl an exit. Stages 11 and 12 built an archive with fidelity and an
+index over it; neither produced anything a person or another program could
+just use. Three outputs: JSONL of clean text, a self-contained HTML report, and
+a zip of both plus the archive.
+
+This is also step one of the search work: the JSONL is what an index or an
+embedding pipeline eats.
+
+
+STEPS TAKEN
+-----------
+1. Wrote minicrawl/export.py — page_record(), JsonlExporter, crawl_summary(),
+   write_report(), write_bundle().
+2. Wrote minicrawl/report.html — a self-contained template with a
+   /*__DATA__*/null placeholder the exporter replaces with the crawl's JSON.
+   System fonts only; the file must open with no network.
+3. Added `exporter` to CrawlConfig and called it at both page-completion
+   points, including the 304 path.
+4. Bound `found` before the is_html branch so the hook does not need
+   locals().get("found").
+5. CLI: --export, --report, --bundle, --no-text.
+6. Ran all four outputs together against the corpus; fixed the bundle ordering
+   bug found by reading the zip listing.
+7. Built a wheel and asserted the template is inside it.
+8. 18 tests.
+
+
+CONCEPTS APPLIED
+----------------
+- JSONL as the interchange format: streamable, one record per line, no
+  quoting edge cases, readable by anything.
+- main_text vs text: exporting the boilerplate poisons every downstream use.
+- Self-contained artefacts: a report that fetches a font is broken offline,
+  which is where reports get read.
+- Lazy open: configuring an output costs nothing; an empty crawl leaves no
+  empty file. Same rule as WarcWriter.
+- Explicit wire formats: fields written one by one, so adding a field to Page
+  cannot silently change a format other programs parse.
+- Tolerant collection hides absence: skipping missing zip members is correct
+  and made a real omission invisible.
+- Package data is not automatic — verify by building the artefact.
+
+
+CONCEPT -> CODE MAP
+-------------------
+one record per page           minicrawl/export.py :: page_record()
+boilerplate-stripped text     minicrawl/export.py :: page_record(), main_text
+runaway page cap              minicrawl/export.py :: MAX_TEXT
+streaming writer, lazy open   minicrawl/export.py :: JsonlExporter
+the numbers, once             minicrawl/export.py :: crawl_summary()
+self-contained report         minicrawl/export.py :: write_report(), report.html
+skip-missing bundle           minicrawl/export.py :: write_bundle()
+crawl hook                    minicrawl/crawler.py :: config.exporter
+the 304 record                minicrawl/crawler.py :: not-modified branch
+`found` bound before branch   minicrawl/crawler.py :: found = None
+command line                  minicrawl/cli.py :: --export/--report/--bundle
+
+
+WHAT BROKE
+----------
+1. THE BUNDLE SILENTLY SHIPPED THREE FILES INSTEAD OF FOUR.
+   write_bundle skips members that do not exist, which is the right behaviour
+   — a crawl without --warc should still bundle its report. But the bundle was
+   written BEFORE the CDX index, so the index did not exist yet and was
+   skipped. No error, no warning, a zip that looked complete.
+   Found by reading the `unzip -l` listing rather than trusting the exit code.
+   Fixed by writing the bundle last, after every output it may contain.
+
+   The theme again, in miniature: a designed tolerance for absence makes a
+   genuine absence invisible.
+
+2. locals().get("found") — WORKS, AND IS THE KIND OF THING THAT STOPS WORKING.
+   `found` was bound inside `if got.is_html:`. Rebound to None before the
+   branch instead: a PDF is still a crawled page, and the export hook has to
+   be able to ask for the parse and be told there wasn't one.
+
+
+HOW TO VERIFY
+-------------
+  uv run pytest tests/test_stage15_export.py -q        # 18 tests
+
+  uv run python -m testsite.server --ports 8081 &
+  uv run minicrawl http://127.0.0.1:8081/ --quiet --max-pages 30 \
+      --export c.jsonl --report c.html \
+      --warc c.warc.gz --cdx c.cdxj --bundle c.zip
+  unzip -l c.zip                       # four members
+  head -1 c.jsonl | python3 -m json.tool
+  open c.html                          # then turn the wifi off and reload
+
+  # the template really ships
+  uv build --wheel -o dist && unzip -l dist/*.whl | grep report.html
+
+
+STATE AFTER THIS STAGE
+----------------------
+- A crawl produces something usable: text for machines, a report for people.
+- The JSONL is the input format the search work of stage 16 will consume.
+- Still absent: a UI download that includes text (events do not carry it),
+  merging exports across crawls, and CSV (deliberately).

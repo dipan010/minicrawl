@@ -39,6 +39,7 @@ THE STAGES
   12  CDX index and replay                   SURT, binary search on disk, offline
   13  front end, and the real web            SSE, CORS, character encodings
   14  exposing it safely                     SSRF, rate limits, fail-safe defaults
+  15  getting the crawl out                  JSONL, self-contained report, bundles
 
 Where the WHAT BROKE sections are worth reading on their own: 05 (a
 normalisation rule that invented 404s), 06 (a degenerate corpus that broke

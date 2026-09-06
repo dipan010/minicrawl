@@ -66,6 +66,7 @@ class CrawlConfig:
     # -- stage 11 --
     store: object | None = None               # a store.Store, or None to keep nothing
     warc: object | None = None                # a warc.WarcWriter, or None
+    exporter: object | None = None            # an export.JsonlExporter, or None
 
 
 @dataclass
@@ -320,6 +321,11 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                         config.store.put(got)
                     if config.warc is not None:
                         config.warc.write_response(got)
+                    if config.exporter is not None:
+                        # No body means no text. Dropping the page instead
+                        # would make a second crawl export less than the first
+                        # while reporting the same page count.
+                        config.exporter.record(page, None)
                     result.not_modified.append(request.url)
                     result.pages.append(page)
                     _emit(config, page)
@@ -338,6 +344,10 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                     _emit(config, page)
                     continue
 
+                # Bound before the branch: a non-HTML response is still a
+                # crawled page, and everything downstream has to be able to ask
+                # for the parse and be told there wasn't one.
+                found = None
                 if got.is_html:
                     found = extract.parse(got.body, got.final_url,
                                           got.headers.get("content-type"))
@@ -414,6 +424,11 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
                     config.store.put(got, title=page.title, verdict=page.verdict)
                 if config.warc is not None:
                     config.warc.write_response(got)
+                if config.exporter is not None:
+                    # `found` exists only for HTML; a PDF or an image is still
+                    # a crawled page and still belongs in the export, just
+                    # without text.
+                    config.exporter.record(page, found)
 
                 result.pages.append(page)
                 _emit(config, page)
@@ -445,6 +460,8 @@ async def crawl(config: CrawlConfig) -> CrawlResult:
             result.bytes_stored = getattr(config.store, "bytes_written", 0)
             result.bytes_deduplicated = getattr(config.store, "bytes_deduplicated", 0)
             result.store_refusals = dict(getattr(config.store, "refusals", {}))
+        if config.exporter is not None:
+            config.exporter.close()
         if config.warc is not None:
             result.warc_records = config.warc.records
             result.warc_bytes = config.warc.bytes_written

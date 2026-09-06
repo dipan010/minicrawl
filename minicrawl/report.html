@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crawl report — minicrawl</title>
+<style>
+/* Self-contained by design: no webfonts, no CDN, no network. A report that
+   fetches anything is a report that renders wrong offline, which is exactly
+   where a downloaded file gets read. */
+:root {
+  --paper:#f5f4f0; --card:#fffefb; --sunk:#eeede7; --ink:#1a1a17;
+  --muted:#6e6c64; --faint:#918e84; --rule:#dfdcd3; --rule-strong:#c9c5ba;
+  --accent:#1f5e4b; --accent-soft:#dce8e1; --accent-ink:#164437;
+  --warn:#b07a16; --warn-soft:#f2e7ce; --bad:#a33224; --bad-soft:#f4dfdb;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:#151613; --card:#1d1e1a; --sunk:#232420; --ink:#edebe3;
+    --muted:#9a978c; --faint:#7c7a70; --rule:#2e302a; --rule-strong:#3d3f37;
+    --accent:#6fbf9c; --accent-soft:#1e3129; --accent-ink:#9bd6bc;
+    --warn:#d7a94e; --warn-soft:#332912; --bad:#de7360; --bad-soft:#3a211c;
+  }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink);
+       font-family:var(--sans); font-size:15px; line-height:1.55; }
+.wrap { max-width:1000px; margin:0 auto; padding:0 24px 72px; }
+header { padding:52px 0 26px; border-bottom:2px solid var(--ink); }
+.kick { font-family:var(--mono); font-size:11px; letter-spacing:.15em;
+        text-transform:uppercase; color:var(--accent); margin:0 0 14px; }
+h1 { font-family:var(--serif); font-weight:500; font-size:clamp(30px,5vw,46px);
+     line-height:1.05; letter-spacing:-.02em; margin:0 0 12px; }
+.seed { font-family:var(--mono); font-size:13px; color:var(--muted);
+        word-break:break-all; margin:0; }
+.meta { font-family:var(--mono); font-size:11.5px; color:var(--faint); margin:16px 0 0; }
+.strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr));
+         border-bottom:1px solid var(--rule); }
+.cell { padding:20px 18px 20px 0; }
+.cell + .cell { padding-left:18px; border-left:1px solid var(--rule); }
+.cell b { display:block; font-family:var(--serif); font-weight:500; font-size:30px;
+          line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+.cell b.ok { color:var(--accent); } .cell b.bad { color:var(--bad); }
+.cell span { display:block; margin-top:6px; font-family:var(--mono); font-size:10px;
+             letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+section { padding:40px 0 0; }
+h2 { font-family:var(--serif); font-weight:500; font-size:23px; margin:0 0 16px;
+     letter-spacing:-.01em; }
+.panel { background:var(--card); border:1px solid var(--rule); border-radius:4px; }
+.scroll { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-size:13px; }
+th { font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
+     color:var(--faint); font-weight:500; text-align:left; padding:10px 12px;
+     border-bottom:1px solid var(--rule-strong); white-space:nowrap; position:sticky;
+     top:0; background:var(--card); }
+td { padding:8px 12px; border-bottom:1px solid var(--rule); vertical-align:top; }
+tr:last-child td { border-bottom:0; }
+td.m { font-family:var(--mono); font-size:12px; word-break:break-all; }
+td.n { text-align:right; font-family:var(--mono); font-size:12px;
+       font-variant-numeric:tabular-nums; white-space:nowrap; }
+.st { font-family:var(--mono); font-size:12px; font-weight:600; }
+.st.ok { color:var(--accent); } .st.no { color:var(--bad); }
+.pill { display:inline-block; font-family:var(--mono); font-size:9.5px; letter-spacing:.05em;
+        text-transform:uppercase; padding:2px 7px; border-radius:20px;
+        background:var(--sunk); color:var(--muted); white-space:nowrap; }
+.pill.new { background:var(--accent-soft); color:var(--accent-ink); }
+.pill.dup { background:var(--warn-soft); color:var(--warn); }
+.pill.err { background:var(--bad-soft); color:var(--bad); }
+.duo { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+@media (max-width:720px){ .duo{ grid-template-columns:1fr; } }
+.duo .panel { padding:18px 20px; }
+h3 { font-family:var(--mono); font-size:10px; letter-spacing:.11em; text-transform:uppercase;
+     color:var(--faint); margin:0 0 14px; font-weight:500; }
+.bar { display:grid; grid-template-columns:110px 1fr 44px; gap:10px; align-items:center;
+       margin-bottom:8px; }
+.bar .k { font-family:var(--mono); font-size:11px; color:var(--muted); overflow:hidden;
+          text-overflow:ellipsis; white-space:nowrap; }
+.bar .t { height:8px; background:var(--sunk); border-radius:2px; overflow:hidden; }
+.bar .f { height:100%; background:var(--accent); border-radius:2px; }
+.bar .f.w { background:var(--warn); }
+.bar .v { font-family:var(--mono); font-size:11px; color:var(--muted); text-align:right;
+          font-variant-numeric:tabular-nums; }
+ul.plain { list-style:none; margin:0; padding:0; font-family:var(--mono); font-size:12px;
+           color:var(--muted); }
+ul.plain li { padding:3px 0; word-break:break-all; }
+footer { margin-top:44px; padding-top:20px; border-top:2px solid var(--ink);
+         font-family:var(--mono); font-size:11px; color:var(--faint); }
+footer a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="kick">Crawl report</p>
+    <h1 id="h1">Crawl report</h1>
+    <p class="seed" id="seed"></p>
+    <p class="meta" id="meta"></p>
+  </header>
+  <div class="strip" id="strip"></div>
+
+  <section>
+    <h2>Pages</h2>
+    <div class="panel scroll" style="max-height:560px;overflow-y:auto">
+      <table><thead><tr>
+        <th>Status</th><th class="n">Depth</th><th>URL</th><th>Title</th>
+        <th class="n">Links</th><th class="n">Words</th><th>Verdict</th>
+      </tr></thead><tbody id="rows"></tbody></table>
+    </div>
+  </section>
+
+  <section>
+    <div class="duo">
+      <div class="panel"><h3>Documents by verdict</h3><div id="verdicts"></div></div>
+      <div class="panel"><h3>Pages by link depth</h3><div id="depths"></div></div>
+    </div>
+  </section>
+
+  <section id="notablewrap">
+    <h2>What the crawler decided</h2>
+    <div class="duo">
+      <div class="panel"><h3>Not fetched</h3><div id="skipped"></div></div>
+      <div class="panel"><h3>How it ended</h3><div id="ending"></div></div>
+    </div>
+  </section>
+
+  <footer>
+    Produced by <a href="https://github.com/dipan010/minicrawl">minicrawl</a>.
+    Every figure measured during the crawl above. This file is self-contained —
+    no network, no fonts to load, nothing to install.
+  </footer>
+</div>
+<script>
+const DATA = /*__DATA__*/null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g,
+  c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const num = n => Number(n || 0).toLocaleString();
+
+const S = DATA.summary, P = DATA.pages, E = DATA.errors;
+document.title = "Crawl report — " + (S.seeds[0] || "minicrawl");
+$("h1").textContent = "What the crawler found";
+$("seed").textContent = S.seeds.join("  ·  ");
+$("meta").textContent =
+  `${S.generated} · ${S.workers} workers · ${S.hosts_seen} host(s) · peak ${S.peak_in_flight} in flight`;
+
+$("strip").innerHTML = [
+  [S.pages, "pages", "ok"],
+  [S.errors, "errors", S.errors ? "bad" : ""],
+  [num(S.bytes_downloaded), "bytes", ""],
+  [S.duration + "s", "wall clock", ""],
+  [S.blocked_by_robots.length, "blocked by robots", ""],
+  [Object.values(S.dedup || {}).reduce((a, b) => a + b, 0) - (S.dedup.new || 0), "duplicates", ""],
+].map(([v, l, c]) => `<div class="cell"><b class="${c}">${v}</b><span>${l}</span></div>`).join("");
+
+const cls = v => v === "new" ? "new" : "dup";
+$("rows").innerHTML = P.concat(E).map(p => `<tr>
+  <td class="st ${p.error ? "no" : "ok"}">${esc(p.error ? "err" : p.status)}</td>
+  <td class="n">${p.depth}</td>
+  <td class="m">${esc(p.final_url)}</td>
+  <td>${esc(p.title || "—")}</td>
+  <td class="n">${p.links}</td>
+  <td class="n">${num(p.words)}</td>
+  <td>${p.error
+        ? `<span class="pill err">${esc(p.error)}</span>`
+        : `<span class="pill ${cls(p.verdict)}">${esc(String(p.verdict).replace(/_/g, " "))}</span>`}</td>
+</tr>`).join("") || `<tr><td colspan="7" style="color:var(--faint)">No pages.</td></tr>`;
+
+function bars(node, pairs, warnKey) {
+  const top = Math.max(...pairs.map(p => p[1]), 1);
+  node.innerHTML = pairs.length ? pairs.map(([k, v]) => `<div class="bar">
+    <span class="k" title="${esc(k)}">${esc(k)}</span>
+    <span class="t"><span class="f ${warnKey && warnKey(k) ? "w" : ""}" style="width:${(v / top) * 100}%"></span></span>
+    <span class="v">${v}</span></div>`).join("")
+    : `<p style="color:var(--faint);font-size:13px;margin:0">None.</p>`;
+}
+bars($("verdicts"),
+  Object.entries(S.dedup || {}).sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => [k.replace(/_/g, " "), v]),
+  k => k !== "new");
+const depths = {};
+P.forEach(p => { depths["depth " + p.depth] = (depths["depth " + p.depth] || 0) + 1; });
+bars($("depths"), Object.entries(depths).sort());
+
+const traps = Object.values(S.rejected_by_traps || {}).reduce((a, b) => a + b, 0);
+$("skipped").innerHTML = `<ul class="plain">` +
+  (S.blocked_by_robots.length
+    ? S.blocked_by_robots.slice(0, 25).map(u => `<li>robots.txt — ${esc(u)}</li>`).join("")
+    : `<li>Nothing was blocked by robots.txt.</li>`) +
+  (traps ? `<li>${traps} URLs rejected as traps</li>` : "") +
+  (S.not_modified ? `<li>${S.not_modified} answered 304 — unchanged since last crawl</li>` : "") +
+  `</ul>`;
+
+$("ending").innerHTML = `<ul class="plain">
+  <li>stopped: ${esc(S.stopped_because)}</li>
+  <li>${S.pages} pages in ${S.duration}s</li>
+  ${S.stored_objects ? `<li>${S.stored_objects} distinct documents stored</li>` : ""}
+  ${S.warc_records ? `<li>${S.warc_records} WARC records written</li>` : ""}
+</ul>`;
+</script>
+</body>
+</html>
