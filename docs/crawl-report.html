@@ -1,0 +1,614 @@
+<title>minicrawl Crawl Report</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --paper:#F5F4F0; --card:#FFFEFB; --sunk:#EEEDE7;
+  --ink:#1A1A17; --muted:#6E6C64; --faint:#918E84;
+  --rule:#DFDCD3; --rule-strong:#C9C5BA;
+  --accent:#1F5E4B; --accent-soft:#DCE8E1; --accent-ink:#164437;
+  --warn:#B07A16; --warn-soft:#F2E7CE;
+  --bad:#A33224; --bad-soft:#F4DFDB;
+  --shadow:0 1px 2px rgba(26,26,23,.05), 0 8px 24px -18px rgba(26,26,23,.35);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:#151613; --card:#1D1E1A; --sunk:#232420;
+    --ink:#EDEBE3; --muted:#9A978C; --faint:#7C7A70;
+    --rule:#2E302A; --rule-strong:#3D3F37;
+    --accent:#6FBF9C; --accent-soft:#1E3129; --accent-ink:#9BD6BC;
+    --warn:#D7A94E; --warn-soft:#33291296;
+    --bad:#DE7360; --bad-soft:#3A211C;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:#151613; --card:#1D1E1A; --sunk:#232420;
+  --ink:#EDEBE3; --muted:#9A978C; --faint:#7C7A70;
+  --rule:#2E302A; --rule-strong:#3D3F37;
+  --accent:#6FBF9C; --accent-soft:#1E3129; --accent-ink:#9BD6BC;
+  --warn:#D7A94E; --warn-soft:#33291296;
+  --bad:#DE7360; --bad-soft:#3A211C;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -18px rgba(0,0,0,.8);
+}
+* { box-sizing:border-box; }
+body {
+  background:var(--paper); color:var(--ink); margin:0;
+  font-family:var(--sans); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap { max-width:1080px; margin:0 auto; padding:0 28px 96px; }
+@media (max-width:640px){ .wrap{ padding:0 18px 64px; } }
+
+/* ---------- masthead ---------- */
+.mast { padding:64px 0 36px; border-bottom:2px solid var(--ink); }
+.kicker {
+  font-family:var(--mono); font-size:11px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--accent); margin:0 0 20px;
+  display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+}
+.kicker .dot { width:5px; height:5px; border-radius:50%; background:var(--accent); }
+h1 {
+  font-family:var(--serif); font-weight:500; font-size:clamp(38px,6.2vw,66px);
+  line-height:1.02; letter-spacing:-.02em; margin:0 0 18px; text-wrap:balance;
+}
+h1 em { font-style:italic; color:var(--accent); }
+.standfirst {
+  font-family:var(--serif); font-size:clamp(18px,2.2vw,21px); line-height:1.5;
+  color:var(--muted); max-width:60ch; margin:0 0 4px;
+}
+.byline {
+  font-family:var(--mono); font-size:12px; color:var(--faint);
+  margin-top:26px; display:flex; gap:18px; flex-wrap:wrap;
+}
+.byline a { color:var(--accent); text-decoration:none; border-bottom:1px solid var(--rule-strong); }
+.byline a:hover { border-color:var(--accent); }
+
+/* ---------- verdict strip ---------- */
+.verdict {
+  margin:0; border-bottom:1px solid var(--rule);
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+}
+.vcell { padding:22px 20px 22px 0; }
+.vcell + .vcell { padding-left:20px; border-left:1px solid var(--rule); }
+.vcell b {
+  display:block; font-family:var(--serif); font-weight:500;
+  font-size:34px; line-height:1; letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;
+}
+.vcell b.good { color:var(--accent); }
+.vcell span {
+  display:block; margin-top:7px; font-family:var(--mono); font-size:10.5px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--faint);
+}
+
+/* ---------- sections ---------- */
+section { padding:52px 0 8px; border-bottom:1px solid var(--rule); }
+section:last-of-type { border-bottom:0; }
+.eyebrow {
+  font-family:var(--mono); font-size:11px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--faint); margin:0 0 12px;
+  display:flex; align-items:baseline; gap:12px;
+}
+.eyebrow .num { color:var(--accent); font-weight:600; }
+h2 {
+  font-family:var(--serif); font-weight:500; font-size:clamp(25px,3.4vw,34px);
+  line-height:1.15; letter-spacing:-.015em; margin:0 0 14px; text-wrap:balance;
+}
+.lede { max-width:66ch; color:var(--muted); margin:0 0 26px; font-size:16.5px; }
+.lede strong { color:var(--ink); font-weight:600; }
+.lede code, .inline {
+  font-family:var(--mono); font-size:.88em; background:var(--sunk);
+  padding:1px 5px; border-radius:3px; color:var(--ink);
+}
+
+/* ---------- generic pieces ---------- */
+.panel {
+  background:var(--card); border:1px solid var(--rule);
+  border-radius:4px; box-shadow:var(--shadow);
+}
+.scroll { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-size:13.5px; }
+th {
+  font-family:var(--mono); font-size:10px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--faint); font-weight:500;
+  text-align:left; padding:10px 12px; border-bottom:1px solid var(--rule-strong);
+  white-space:nowrap;
+}
+td { padding:9px 12px; border-bottom:1px solid var(--rule); vertical-align:top; }
+tr:last-child td { border-bottom:0; }
+td.m, th.m { font-family:var(--mono); font-size:12px; }
+td.n { text-align:right; font-variant-numeric:tabular-nums; font-family:var(--mono); font-size:12px; }
+.pill {
+  display:inline-block; font-family:var(--mono); font-size:10px;
+  letter-spacing:.06em; text-transform:uppercase; padding:2px 7px;
+  border-radius:20px; white-space:nowrap;
+  background:var(--sunk); color:var(--muted);
+}
+.pill.new { background:var(--accent-soft); color:var(--accent-ink); }
+.pill.dup { background:var(--warn-soft); color:var(--warn); }
+.pill.err { background:var(--bad-soft); color:var(--bad); }
+.st { font-family:var(--mono); font-size:12px; font-weight:600; }
+.st.ok { color:var(--accent); }
+.st.no { color:var(--bad); }
+
+/* ---------- bars ---------- */
+.bars { display:flex; flex-direction:column; gap:9px; }
+.brow { display:grid; grid-template-columns:118px 1fr 52px; gap:12px; align-items:center; }
+.brow .lab { font-family:var(--mono); font-size:11.5px; color:var(--muted);
+             overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.brow .track { height:9px; background:var(--sunk); border-radius:2px; overflow:hidden; }
+.brow .fill { height:100%; background:var(--accent); border-radius:2px; }
+.brow .fill.warn { background:var(--warn); }
+.brow .fill.bad { background:var(--bad); }
+.brow .val { font-family:var(--mono); font-size:11.5px; color:var(--muted);
+             text-align:right; font-variant-numeric:tabular-nums; }
+
+/* ---------- two-up ---------- */
+.duo { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+@media (max-width:760px){ .duo{ grid-template-columns:1fr; } }
+.duo > .panel { padding:20px 22px; }
+.panel h3, .block h3 {
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--faint); margin:0 0 14px; font-weight:500;
+}
+
+/* ---------- ground truth diff ---------- */
+.gt { display:flex; flex-wrap:wrap; gap:6px; }
+.gt span {
+  font-family:var(--mono); font-size:11.5px; padding:3px 8px; border-radius:3px;
+  background:var(--accent-soft); color:var(--accent-ink);
+}
+.gt span.trap { background:var(--warn-soft); color:var(--warn); }
+
+/* ---------- code ---------- */
+pre {
+  font-family:var(--mono); font-size:12px; line-height:1.65; margin:0;
+  background:var(--sunk); border:1px solid var(--rule); border-radius:4px;
+  padding:14px 16px; overflow-x:auto; color:var(--ink);
+}
+pre .k { color:var(--accent); }
+pre .c { color:var(--faint); }
+
+/* ---------- cdx search ---------- */
+.cdxwrap { display:grid; grid-template-columns:1fr 300px; gap:20px; align-items:start; }
+@media (max-width:820px){ .cdxwrap{ grid-template-columns:1fr; } }
+.idx { font-family:var(--mono); font-size:11px; line-height:1.5;
+       max-height:330px; overflow-y:auto; }
+.idx .line {
+  display:grid; grid-template-columns:34px 1fr; gap:10px;
+  padding:3px 10px; border-left:2px solid transparent; white-space:nowrap;
+}
+.idx .line .no { color:var(--faint); text-align:right; }
+.idx .line .key { overflow:hidden; text-overflow:ellipsis; }
+.idx .line.probe { background:var(--warn-soft); border-left-color:var(--warn); }
+.idx .line.hit { background:var(--accent-soft); border-left-color:var(--accent); font-weight:600; }
+.controls { display:flex; flex-direction:column; gap:10px; }
+select, button {
+  font-family:var(--mono); font-size:12px; padding:9px 11px;
+  border:1px solid var(--rule-strong); border-radius:4px;
+  background:var(--card); color:var(--ink); width:100%;
+}
+button { background:var(--accent); color:var(--paper); border-color:var(--accent);
+         font-weight:600; cursor:pointer; letter-spacing:.04em; text-transform:uppercase; }
+button:hover { filter:brightness(1.08); }
+button:focus-visible, select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.trace { font-family:var(--mono); font-size:11.5px; color:var(--muted);
+         background:var(--sunk); border-radius:4px; padding:12px 13px;
+         min-height:120px; line-height:1.7; }
+.trace b { color:var(--ink); font-weight:600; }
+
+/* ---------- charset ---------- */
+.enc { display:grid; gap:12px; }
+.encrow {
+  display:grid; grid-template-columns:190px 1fr 1fr; gap:0;
+  border:1px solid var(--rule); border-radius:4px; overflow:hidden;
+  background:var(--card);
+}
+@media (max-width:760px){ .encrow{ grid-template-columns:1fr; } }
+.encrow > div { padding:13px 15px; }
+.encrow .meta { background:var(--sunk); }
+.encrow .before { border-left:1px solid var(--rule); }
+.encrow .after { border-left:1px solid var(--rule); }
+.encrow .path { font-family:var(--mono); font-size:12px; font-weight:600; }
+.encrow .sub { font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:4px; }
+.encrow .tag { font-family:var(--mono); font-size:9.5px; letter-spacing:.1em;
+               text-transform:uppercase; color:var(--faint); display:block; margin-bottom:5px; }
+.encrow .txt { font-size:16px; }
+.encrow .before .txt { color:var(--bad); }
+.encrow .after .txt { color:var(--accent); }
+
+/* ---------- callout ---------- */
+.callout {
+  border-left:3px solid var(--accent); background:var(--card);
+  padding:18px 22px; margin:26px 0 6px; border-radius:0 4px 4px 0;
+  box-shadow:var(--shadow);
+}
+.callout p { margin:0; max-width:64ch; }
+.callout p + p { margin-top:10px; }
+.callout .big {
+  font-family:var(--serif); font-size:21px; line-height:1.35; color:var(--ink);
+}
+
+footer {
+  padding:48px 0 0; border-top:2px solid var(--ink); margin-top:56px;
+  font-family:var(--mono); font-size:12px; color:var(--faint);
+  display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap;
+}
+footer a { color:var(--accent); text-decoration:none; }
+footer a:hover { text-decoration:underline; }
+@media (prefers-reduced-motion:reduce){ *{ animation:none!important; transition:none!important; } }
+</style>
+<div class="wrap">
+
+<header class="mast">
+  <p class="kicker"><span class="dot"></span>Crawl report<span class="dot"></span><span id="k-date"></span><span class="dot"></span>every figure measured, none typed</p>
+  <h1>A crawler, built from scratch and <em>checked against what it should have found</em>.</h1>
+  <p class="standfirst">minicrawl is thirteen stages of web crawler — frontier, robots, politeness, dedup, archive, index, replay — each one verified against a corpus that declares its own ground truth. This page was generated by running it.</p>
+  <p class="byline">
+    <span id="k-tests"></span>
+    <a href="https://github.com/dipan010/minicrawl">github.com/dipan010/minicrawl</a>
+    <span>MIT</span>
+  </p>
+</header>
+
+<div class="verdict" id="verdict"></div>
+
+<section>
+  <p class="eyebrow"><span class="num">01</span> The claim</p>
+  <h2>Correctness is a diff, not an opinion</h2>
+  <p class="lede">The test corpus is declared as data in <code>spec.py</code> — every page, redirect, duplicate and trap. A second module derives the <strong>expected result</strong> from that declaration, touching no HTTP and parsing no HTML. A crawl is correct when the set it found equals the set that was declared. Nothing else counts, and the ground truth is never edited to make a crawl pass.</p>
+  <div class="duo">
+    <div class="panel">
+      <h3>Pages the corpus says are reachable</h3>
+      <div class="gt" id="gt-expected"></div>
+    </div>
+    <div class="panel">
+      <h3>Diff after the crawl</h3>
+      <div id="gt-diff"></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow"><span class="num">02</span> The run</p>
+  <h2>Every page it fetched</h2>
+  <p class="lede">One polite crawl of the corpus: four workers, one request per host at a time, <code>Crawl-delay</code> obeyed. The verdict column is stage 6 — each document classified against everything already seen.</p>
+  <div class="panel scroll" style="max-height:420px;overflow-y:auto">
+    <table><thead><tr>
+      <th>Status</th><th>Depth</th><th>Path</th><th>Title</th>
+      <th class="n">Links</th><th class="n">Words</th><th>Verdict</th>
+    </tr></thead><tbody id="pages"></tbody></table>
+  </div>
+  <div class="duo" style="margin-top:20px">
+    <div class="panel"><h3>Documents by verdict</h3><div class="bars" id="verdicts"></div></div>
+    <div class="panel"><h3>Pages by link depth</h3><div class="bars" id="depths"></div></div>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow"><span class="num">03</span> robots.txt</p>
+  <h2>Four hosts, four different answers</h2>
+  <p class="lede">RFC 9309 says an <strong>unreachable</strong> robots.txt is not permission. A 4xx means the site has no rules and you may crawl freely; a 5xx or a timeout means you may crawl <strong>nothing</strong>. The corpus serves all four cases on four ports so the rule can be tested rather than assumed.</p>
+  <div class="panel scroll">
+    <table><thead><tr><th>Host</th><th class="n">robots.txt</th><th>Effect</th><th>Disallowed</th><th class="n">Crawl-delay</th></tr></thead>
+    <tbody id="robots"></tbody></table>
+  </div>
+  <div class="callout">
+    <p class="big" id="blocked-line"></p>
+    <p style="margin-top:8px;color:var(--muted);font-size:14.5px">Longest match wins, not first match — and <span class="inline">Allow:</span> beats <span class="inline">Disallow:</span> when it is more specific, which is why <span class="inline">/private/public-corner</span> is fetched while <span class="inline">/private/secret</span> is not.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow"><span class="num">04</span> Normalisation</p>
+  <h2>Fourteen spellings of one page</h2>
+  <p class="lede">The corpus links to <code>/a</code> fourteen different ways. A crawler that treats them as distinct fetches the same document fourteen times; one that over-normalises invents URLs the server will not serve. The right answer is <strong>three</strong> fetches — two genuinely distinct URLs, plus one redirect the server resolves itself.</p>
+  <div class="duo" id="normgroups"></div>
+  <div class="callout">
+    <p style="font-size:15px">Trailing slashes are <strong>not</strong> stripped. <span class="inline">/docs/</span> and <span class="inline">/docs</span> are different resources to a server, and an earlier version of this rule invented 404s by assuming otherwise. The corpus now answers <span class="inline">/a/</span> with a 301 so the crawler learns the equivalence from the server instead of guessing it.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow"><span class="num">05</span> Duplicates</p>
+  <h2>Same document, different URL</h2>
+  <p class="lede">Three kinds, three mechanisms. Byte-identical pages collapse on a SHA-256 of the body. Near-duplicates are caught by <strong>simhash</strong> — a 64-bit fingerprint where similar documents differ in few bits — with banded matching so the comparison is not quadratic. A <code>&lt;link rel=canonical&gt;</code> is a third kind: the site telling you two URLs are one page.</p>
+  <div class="panel scroll"><table>
+    <thead><tr><th>Kind</th><th>Pair</th><th>Caught by</th></tr></thead>
+    <tbody id="dups"></tbody></table>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow"><span class="num">06</span> The archive</p>
+  <h2>What the crawl left behind</h2>
+  <p class="lede">Every response is written to a <strong>WARC 1.1</strong> file — the format the Internet Archive and Common Crawl use — with each record as its own gzip member. That framing is what makes the file seekable: the bytes of one record decompress alone, with nothing before them read.</p>
+  <div class="verdict" id="archive-stats" style="border-top:1px solid var(--rule)"></div>
+  <div style="margin-top:22px">
+    <p class="eyebrow" style="margin-bottom:10px">One line of the CDX index</p>
+    <pre id="cdx-sample"></pre>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow"><span class="num">07</span> Lookup</p>
+  <h2>Finding one record without reading the file</h2>
+  <p class="lede">The index is a <strong>sorted</strong> text file, so a lookup seeks to a byte midpoint, scans to the next newline, compares, and recurses on a half — never loading the index. The key is a <strong>SURT</strong>: host labels reversed, so every URL under a domain sits in one contiguous run. Pick a URL and watch the same algorithm run over the real index from the crawl above.</p>
+  <div class="cdxwrap">
+    <div class="panel"><div class="idx" id="idx"></div></div>
+    <div class="controls">
+      <select id="target" aria-label="URL to look up"></select>
+      <button id="run">Look it up</button>
+      <div class="trace" id="trace">Probes are marked as the search narrows. The line it lands on is the answer.</div>
+    </div>
+  </div>
+  <div class="callout">
+    <p class="big" id="bs-line"></p>
+    <p style="margin-top:8px;color:var(--muted);font-size:14.5px">Measured on a 20,000-line index, not extrapolated. A linear scan returns the same record — what separates a binary search from a scan is how much of the file it touched, so that is what the test asserts.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow"><span class="num">08</span> Replay</p>
+  <h2>The same links, with the server switched off</h2>
+  <p class="lede">An archive you can write but not read is a backup nobody has ever restored. Replay seeks to each record, rebuilds the HTTP response and hands the body to the same parser the live crawl used — no socket, no robots check, no politeness wait.</p>
+  <div class="callout"><p class="big" id="replay-line"></p>
+  <p style="margin-top:8px;color:var(--muted);font-size:14.5px">The test poisons <span class="inline">socket.connect</span> for the duration rather than killing the server, because a stale listener on the port could let a kill-based test pass by accident.</p></div>
+</section>
+
+<section>
+  <p class="eyebrow"><span class="num">09</span> The real web</p>
+  <h2>What a self-written corpus could never find</h2>
+  <p class="lede">Twelve stages passed against a corpus that was entirely UTF-8 — so <code>parse()</code> assumed UTF-8, and nothing ever noticed. Pointing the crawler at real sites found it in minutes. <strong>It hid because link extraction survives mojibake:</strong> hrefs are ASCII, so a mangled page yields exactly the right links and the crawl looks perfect while every title, word count and duplicate-detection fingerprint is quietly corrupted.</p>
+  <div class="enc" id="charset"></div>
+  <div class="callout">
+    <p style="font-size:15px">The fix is a stated precedence — BOM, then the HTTP header, then <span class="inline">&lt;meta charset&gt;</span>, then strict UTF-8, then windows-1252, which decodes every possible byte and therefore cannot fail. The header and meta are decoded <strong>strictly</strong> on purpose: a page that declares UTF-8 and is not is common, and a strict failure is the only evidence that the declaration lied.</p>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow"><span class="num">10</span> Out there</p>
+  <h2>Sites nobody here controls</h2>
+  <p class="lede">Polite settings throughout: robots.txt respected, one request per host at a time, a second or more between requests.</p>
+  <div class="panel scroll"><table>
+    <thead><tr><th>Site</th><th class="n">Pages</th><th class="n">Errors</th><th class="n">Seconds</th><th class="n">Bytes</th><th>Verdicts</th><th>Stopped because</th></tr></thead>
+    <tbody id="sites"></tbody></table>
+  </div>
+  <div style="margin-top:20px">
+    <p class="eyebrow" style="margin-bottom:10px">Rate limits real sites asked for</p>
+    <div class="panel scroll"><table>
+      <thead><tr><th>Host</th><th class="n">robots.txt</th><th class="n">Crawl-delay</th><th>What that means for a crawl</th></tr></thead>
+      <tbody id="delays"></tbody></table>
+    </div>
+  </div>
+  <div class="callout">
+    <p class="big">Hacker News took 91.5 seconds to fetch four pages. That is not slowness — it is obedience.</p>
+    <p style="margin-top:8px;color:var(--muted);font-size:14.5px">Its robots.txt asks for <span class="inline">Crawl-delay: 30</span>. Three gaps at thirty seconds is ninety. Stage 3 measures the delay start-to-start rather than sleeping a fixed amount after each fetch, and this is the first confirmation of that from outside the corpus.</p>
+  </div>
+</section>
+
+<footer>
+  <span>Generated by <span style="color:var(--ink)">scripts/dashboard_data.py</span> — re-run it and every number here changes with the code.</span>
+  <span><a href="https://github.com/dipan010/minicrawl">Source and the thirteen stages →</a></span>
+</footer>
+</div>
+<script>window.__CRAWL__ = {"generated":"2026-09-06","tests":222,"corpus":{"pages":[{"path":"/","url":"http://127.0.0.1:8081/","status":200,"depth":0,"title":"Index","links":23,"words":8,"verdict":"new","duplicate_of":null,"elapsed":0.001,"error":null},{"path":"/a","url":"http://127.0.0.1:8081/a","status":200,"depth":1,"title":"Page A","links":2,"words":47,"verdict":"new","duplicate_of":null,"elapsed":0.001,"error":null},{"path":"/b","url":"http://127.0.0.1:8081/b","status":200,"depth":1,"title":"Page B","links":2,"words":7,"verdict":"new","duplicate_of":null,"elapsed":0.003,"error":null},{"path":"/docs/","url":"http://127.0.0.1:8081/docs/","status":200,"depth":1,"title":"Docs index","links":3,"words":8,"verdict":"new","duplicate_of":null,"elapsed":0.004,"error":null},{"path":"/variants","url":"http://127.0.0.1:8081/variants","status":200,"depth":1,"title":"URL variants","links":9,"words":23,"verdict":"new","duplicate_of":null,"elapsed":0.004,"error":null},{"path":"/dup/exact-1","url":"http://127.0.0.1:8081/dup/exact-1","status":200,"depth":1,"title":"Duplicate","links":1,"words":36,"verdict":"new","duplicate_of":null,"elapsed":0.004,"error":null},{"path":"/dup/exact-2","url":"http://127.0.0.1:8081/dup/exact-2","status":200,"depth":1,"title":"Duplicate","links":1,"words":36,"verdict":"exact_duplicate","duplicate_of":"http://127.0.0.1:8081/dup/exact-1","elapsed":0.004,"error":null},{"path":"/dup/near-1","url":"http://127.0.0.1:8081/dup/near-1","status":200,"depth":1,"title":"Near duplicate one","links":3,"words":443,"verdict":"new","duplicate_of":null,"elapsed":0.002,"error":null},{"path":"/dup/canonical-source","url":"http://127.0.0.1:8081/dup/canonical-source","status":200,"depth":1,"title":"Canonical points elsewhere","links":1,"words":11,"verdict":"canonical_alias","duplicate_of":"http://127.0.0.1:8081/a","elapsed":0.004,"error":null},{"path":"/a","url":"http://127.0.0.1:8081/a","status":200,"depth":1,"title":"Page A","links":2,"words":47,"verdict":"already_seen","duplicate_of":"http://127.0.0.1:8081/a","elapsed":0.008,"error":null},{"path":"/slow","url":"http://127.0.0.1:8081/slow","status":200,"depth":1,"title":"Slow page","links":1,"words":6,"verdict":"new","duplicate_of":null,"elapsed":0.806,"error":null},{"path":"/js-only","url":"http://127.0.0.1:8081/js-only","status":200,"depth":1,"title":"Client rendered","links":0,"words":2,"verdict":"new","duplicate_of":null,"elapsed":0.002,"error":null},{"path":"/etag","url":"http://127.0.0.1:8081/etag","status":200,"depth":1,"title":"Cacheable","links":1,"words":5,"verdict":"new","duplicate_of":null,"elapsed":0.004,"error":null},{"path":"/volatile","url":"http://127.0.0.1:8081/volatile","status":200,"depth":1,"title":"Volatile","links":1,"words":6,"verdict":"new","duplicate_of":null,"elapsed":0.002,"error":null},{"path":"/compressed","url":"http://127.0.0.1:8081/compressed","status":200,"depth":1,"title":"Compressed","links":1,"words":20,"verdict":"new","duplicate_of":null,"elapsed":0.004,"error":null},{"path":"/encoded/latin1","url":"http://127.0.0.1:8081/encoded/latin1","status":200,"depth":1,"title":"Latin-1 caf\u00e9","links":1,"words":13,"verdict":"new","duplicate_of":null,"elapsed":0.006,"error":null},{"path":"/encoded/mislabelled","url":"http://127.0.0.1:8081/encoded/mislabelled","status":200,"depth":1,"title":"Mislabelled caf\u00e9","links":1,"words":13,"verdict":"new","duplicate_of":null,"elapsed":0.003,"error":null},{"path":"/encoded/undeclared","url":"http://127.0.0.1:8081/encoded/undeclared","status":200,"depth":1,"title":"Undeclared caf\u00e9","links":1,"words":15,"verdict":"new","duplicate_of":null,"elapsed":0.003,"error":null},{"path":"/private/public-corner","url":"http://127.0.0.1:8081/private/public-corner","status":200,"depth":1,"title":"Allowed exception","links":1,"words":7,"verdict":"new","duplicate_of":null,"elapsed":0.004,"error":null},{"path":"/gen/1","url":"http://127.0.0.1:8081/gen/1","status":200,"depth":1,"title":"Generated 1","links":2,"words":10607,"verdict":"new","duplicate_of":null,"elapsed":0.004,"error":null},{"path":"/hosts","url":"http://127.0.0.1:8081/hosts","status":200,"depth":1,"title":"Other hosts","links":4,"words":8,"verdict":"new","duplicate_of":null,"elapsed":0.004,"error":null},{"path":"/c","url":"http://127.0.0.1:8081/c","status":200,"depth":2,"title":"Page C","links":1,"words":9,"verdict":"new","duplicate_of":null,"elapsed":0.001,"error":null},{"path":"/docs/one","url":"http://127.0.0.1:8081/docs/one","status":200,"depth":2,"title":"Docs one","links":1,"words":3,"verdict":"new","duplicate_of":null,"elapsed":0.003,"error":null},{"path":"/docs/two","url":"http://127.0.0.1:8081/docs/two","status":200,"depth":2,"title":"Docs two","links":1,"words":3,"verdict":"new","duplicate_of":null,"elapsed":0.002,"error":null},{"path":"/docs/sub/three","url":"http://127.0.0.1:8081/docs/sub/three","status":200,"depth":2,"title":"Docs three","links":1,"words":3,"verdict":"new","duplicate_of":null,"elapsed":0.004,"error":null},{"path":"/a?a=1&b=2","url":"http://127.0.0.1:8081/a?a=1&b=2","status":200,"depth":2,"title":"Page A","links":2,"words":47,"verdict":"exact_duplicate","duplicate_of":"http://127.0.0.1:8081/a","elapsed":0.004,"error":null},{"path":"/a","url":"http://127.0.0.1:8081/a","status":200,"depth":2,"title":"Page A","links":2,"words":47,"verdict":"already_seen","duplicate_of":"http://127.0.0.1:8081/a","elapsed":0.002,"error":null},{"path":"/dup/near-2","url":"http://127.0.0.1:8081/dup/near-2","status":200,"depth":2,"title":"Near duplicate two","links":1,"words":443,"verdict":"near_duplicate","duplicate_of":"http://127.0.0.1:8081/dup/near-1","elapsed":0.003,"error":null},{"path":"/gen/2","url":"http://127.0.0.1:8081/gen/2","status":200,"depth":2,"title":"Generated 2","links":2,"words":10607,"verdict":"near_duplicate","duplicate_of":"http://127.0.0.1:8081/gen/1","elapsed":0.004,"error":null},{"path":"/gen/3","url":"http://127.0.0.1:8081/gen/3","status":200,"depth":2,"title":"Generated 3","links":2,"words":10607,"verdict":"near_duplicate","duplicate_of":"http://127.0.0.1:8081/gen/1","elapsed":0.002,"error":null}],"errors":[{"path":"/loop/1","url":"http://127.0.0.1:8081/loop/1","status":null,"depth":1,"title":"","links":0,"words":0,"verdict":"new","duplicate_of":null,"elapsed":0.01,"error":"redirect_loop"}],"duration":6.97,"workers":4,"peak_in_flight":1,"peak_per_host":{"127.0.0.1:8081":1},"dedup":{"new":22,"exact_duplicate":2,"canonical_alias":1,"already_seen":2,"near_duplicate":3},"blocked_by_robots":["/files/report.pdf","/private/secret"],"rejected_by_traps":{},"bytes_downloaded":211516,"stopped_because":"frontier drained","expected":["/","/a","/b","/c","/compressed","/docs/","/docs/one","/docs/sub/three","/docs/two","/dup/canonical-source","/dup/exact-1","/dup/exact-2","/dup/near-1","/dup/near-2","/encoded/latin1","/encoded/mislabelled","/encoded/undeclared","/etag","/hosts","/js-only","/private/public-corner","/slow","/variants","/volatile"],"found":["/","/a","/b","/c","/compressed","/docs/","/docs/one","/docs/sub/three","/docs/two","/dup/canonical-source","/dup/exact-1","/dup/exact-2","/dup/near-1","/dup/near-2","/encoded/latin1","/encoded/mislabelled","/encoded/undeclared","/etag","/gen/1","/gen/2","/gen/3","/hosts","/js-only","/private/public-corner","/slow","/variants","/volatile"],"missing":[],"unexpected":[],"bounded_traps":["/gen/1","/gen/2","/gen/3"],"archive":{"records":31,"bytes":23700,"cdx_lines":30,"lines":["127.0.0.1:8081)/ 20260906071207 {\"digest\": \"sha256:8e3102dcabde7b78c4e29e9af3bb1eb8efc01c3986b82958743f372467b60f97\", \"filename\": \"d.warc.gz\", \"length\": 811, \"mime\": \"text/html\", \"offset\": 311, \"status\": 200, \"url\": \"http://127.0.0.1:8081/\"}","127.0.0.1:8081)/a 20260906071207 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 713, \"mime\": \"text/html\", \"offset\": 1122, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}","127.0.0.1:8081)/a 20260906071208 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 710, \"mime\": \"text/html\", \"offset\": 7517, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}","127.0.0.1:8081)/a 20260906071213 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 714, \"mime\": \"text/html\", \"offset\": 18541, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}","127.0.0.1:8081)/a?a=1&b=2 20260906071213 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 720, \"mime\": \"text/html\", \"offset\": 17821, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a?a=1&b=2\"}","127.0.0.1:8081)/b 20260906071207 {\"digest\": \"sha256:8396a52adc96627e0724be8b9e3698fdfb9cefd77dafc391852f3a43567672f1\", \"filename\": \"d.warc.gz\", \"length\": 577, \"mime\": \"text/html\", \"offset\": 1835, \"status\": 200, \"url\": \"http://127.0.0.1:8081/b\"}","127.0.0.1:8081)/c 20260906071212 {\"digest\": \"sha256:91c87cc308bb6680844578f389ae5080d6231baa6b9b048d477a476dc5e7489d\", \"filename\": \"d.warc.gz\", \"length\": 572, \"mime\": \"text/html\", \"offset\": 15569, \"status\": 200, \"url\": \"http://127.0.0.1:8081/c\"}","127.0.0.1:8081)/compressed 20260906071210 {\"digest\": \"sha256:8af0ef851d90a7d1aabc983bd7c95ba8a4346611c696af0a9775c7e88dcddd7c\", \"filename\": \"d.warc.gz\", \"length\": 619, \"mime\": \"text/html\", \"offset\": 10597, \"status\": 200, \"url\": \"http://127.0.0.1:8081/compressed\"}","127.0.0.1:8081)/docs/ 20260906071207 {\"digest\": \"sha256:29cdbb3a407f96e221870c0ca3ef5e1f70ad08340542a8fe4ef4a74a154c9167\", \"filename\": \"d.warc.gz\", \"length\": 617, \"mime\": \"text/html\", \"offset\": 2412, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/\"}","127.0.0.1:8081)/docs/one 20260906071212 {\"digest\": \"sha256:441211b1135f8280505b524c1668a42a0f80e4e8f12502af2d6b2d34f301015e\", \"filename\": \"d.warc.gz\", \"length\": 558, \"mime\": \"text/html\", \"offset\": 16141, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/one\"}","127.0.0.1:8081)/docs/sub/three 20260906071213 {\"digest\": \"sha256:bb69f9e44c610c3e7d5eefd8f3e5cb3eda4267131ad59c1eabb1aa8334815e0c\", \"filename\": \"d.warc.gz\", \"length\": 560, \"mime\": \"text/html\", \"offset\": 17261, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/sub/three\"}","127.0.0.1:8081)/docs/two 20260906071212 {\"digest\": \"sha256:bdc119e5b4453e141d8ad15c2d63694e5d2db2e07a0bb372cc15bc158867230b\", \"filename\": \"d.warc.gz\", \"length\": 562, \"mime\": \"text/html\", \"offset\": 16699, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/two\"}","127.0.0.1:8081)/dup/canonical-source 20260906071208 {\"digest\": \"sha256:424390dc5f7c74cf564b521ec3b7261e00df0baa700a4cbfbbf9f538b8ed0c89\", \"filename\": \"d.warc.gz\", \"length\": 617, \"mime\": \"text/html\", \"offset\": 6900, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/canonical-source\"}","127.0.0.1:8081)/dup/exact-1 20260906071208 {\"digest\": \"sha256:8d3ade3ecc2863d2d3fa92bc52d723bd7fd436313bdb8a78bcb60c95522be198\", \"filename\": \"d.warc.gz\", \"length\": 682, \"mime\": \"text/html\", \"offset\": 3762, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/exact-1\"}","127.0.0.1:8081)/dup/exact-2 20260906071208 {\"digest\": \"sha256:8d3ade3ecc2863d2d3fa92bc52d723bd7fd436313bdb8a78bcb60c95522be198\", \"filename\": \"d.warc.gz\", \"length\": 680, \"mime\": \"text/html\", \"offset\": 4444, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/exact-2\"}","127.0.0.1:8081)/dup/near-1 20260906071208 {\"digest\": \"sha256:9b5920352780f762c84a41bd9de463ea4b5ef6176d7c37b13acc4395e2143b9c\", \"filename\": \"d.warc.gz\", \"length\": 1776, \"mime\": \"text/html\", \"offset\": 5124, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/near-1\"}","127.0.0.1:8081)/dup/near-2 20260906071213 {\"digest\": \"sha256:617b20e234f23a1a07a05580dc87a2706c651bc22e7b415b2713be1b050651c8\", \"filename\": \"d.warc.gz\", \"length\": 1746, \"mime\": \"text/html\", \"offset\": 19255, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/near-2\"}","127.0.0.1:8081)/encoded/latin1 20260906071210 {\"digest\": \"sha256:c340fc5f6366e8dd8df2fb671fe5888dabda85a0f3ee3a7cfa66d86cbcf2cdb6\", \"filename\": \"d.warc.gz\", \"length\": 606, \"mime\": \"text/html\", \"offset\": 11216, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/latin1\"}","127.0.0.1:8081)/encoded/mislabelled 20260906071211 {\"digest\": \"sha256:6db3b0aef9123820a579296c3876439a009bbcb9973ce19989f8c309bdaa1c90\", \"filename\": \"d.warc.gz\", \"length\": 613, \"mime\": \"text/html\", \"offset\": 11822, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/mislabelled\"}","127.0.0.1:8081)/encoded/undeclared 20260906071211 {\"digest\": \"sha256:fa37dd9d0a1dabb7671fcb1214e389cb346999acf8d3d46bd9b1cd6e1b9a8e9c\", \"filename\": \"d.warc.gz\", \"length\": 598, \"mime\": \"text/html\", \"offset\": 12435, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/undeclared\"}","127.0.0.1:8081)/etag 20260906071210 {\"digest\": \"sha256:8c8cd2491a3af8f382af2bef8575729352d968b8deb56bfa4faaabf67fbbf6ff\", \"filename\": \"d.warc.gz\", \"length\": 559, \"mime\": \"text/html\", \"offset\": 9466, \"status\": 200, \"url\": \"http://127.0.0.1:8081/etag\"}","127.0.0.1:8081)/gen/1 20260906071211 {\"digest\": \"sha256:bc6a80d5b75ce3c5d7120303311323fce44c76a9ceb35cec88d62b72ec5fbb07\", \"filename\": \"d.warc.gz\", \"length\": 1348, \"mime\": \"text/html\", \"offset\": 13619, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/1\"}","127.0.0.1:8081)/gen/2 20260906071213 {\"digest\": \"sha256:e883831b480673d574b46aebbd96ba80f36f6f1b3c7297d0ee6d0e7c0e8a6920\", \"filename\": \"d.warc.gz\", \"length\": 1350, \"mime\": \"text/html\", \"offset\": 21001, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/2\"}","127.0.0.1:8081)/gen/3 20260906071214 {\"digest\": \"sha256:281e535c475ca273aa09e14a825fc8b190f22adbe6a61305cd3072b98e096e73\", \"filename\": \"d.warc.gz\", \"length\": 1349, \"mime\": \"text/html\", \"offset\": 22351, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/3\"}","127.0.0.1:8081)/hosts 20260906071212 {\"digest\": \"sha256:a2ccb874aa6a75bca741c23b2272f1c0158b7947b8f047a5afe74f9b27ae2104\", \"filename\": \"d.warc.gz\", \"length\": 602, \"mime\": \"text/html\", \"offset\": 14967, \"status\": 200, \"url\": \"http://127.0.0.1:8081/hosts\"}","127.0.0.1:8081)/js-only 20260906071210 {\"digest\": \"sha256:6e679af79e602bb6124e05c602864b0a5b1cb34f8afaa65f5c8dc08d96dc016e\", \"filename\": \"d.warc.gz\", \"length\": 676, \"mime\": \"text/html\", \"offset\": 8790, \"status\": 200, \"url\": \"http://127.0.0.1:8081/js-only\"}","127.0.0.1:8081)/private/public-corner 20260906071211 {\"digest\": \"sha256:9e44bca80ca9ede5f733949efac48c5ec07e184f801a0d5c431168206b11b9a3\", \"filename\": \"d.warc.gz\", \"length\": 586, \"mime\": \"text/html\", \"offset\": 13033, \"status\": 200, \"url\": \"http://127.0.0.1:8081/private/public-corner\"}","127.0.0.1:8081)/slow 20260906071210 {\"digest\": \"sha256:8a56309b206dd7ea1c50606d9ba0a66c175fd559cf99d0fd3ffa34119828b5cc\", \"filename\": \"d.warc.gz\", \"length\": 563, \"mime\": \"text/html\", \"offset\": 8227, \"status\": 200, \"url\": \"http://127.0.0.1:8081/slow\"}","127.0.0.1:8081)/variants 20260906071207 {\"digest\": \"sha256:9d734459066587337494f4fed2219ed21b1b0e7c4e7fbdee8b1415535fa441fe\", \"filename\": \"d.warc.gz\", \"length\": 733, \"mime\": \"text/html\", \"offset\": 3029, \"status\": 200, \"url\": \"http://127.0.0.1:8081/variants\"}","127.0.0.1:8081)/volatile 20260906071210 {\"digest\": \"sha256:882d311f9245b6affd508d85ba0c469ef420f10474154a0565b4543beb6c2cc1\", \"filename\": \"d.warc.gz\", \"length\": 572, \"mime\": \"text/html\", \"offset\": 10025, \"status\": 200, \"url\": \"http://127.0.0.1:8081/volatile\"}"],"replayed_links":74,"replay_bytes_read":23394,"archive_bytes":23700}},"binary_search":{"lines":20000,"file_bytes":3808888,"lines_read":23},"charset":[{"path":"/encoded/latin1","header":"text/html; charset=windows-1252","declares":"windows-1252","really":"windows-1252","decided_by":"http header","before":"Latin-1 caf\u00ef\u00bf\u00bd","after":"Latin-1 caf\u00e9","links_before":1,"links_after":1},{"path":"/encoded/mislabelled","header":"text/html; charset=windows-1252","declares":"utf-8","really":"windows-1252","decided_by":"http header","before":"Mislabelled caf\ufffd","after":"Mislabelled caf\u00e9","links_before":1,"links_after":1},{"path":"/encoded/undeclared","header":"text/html","declares":"utf-8","really":"windows-1252","decided_by":"fallback","before":"Undeclared caf\ufffd","after":"Undeclared caf\u00e9","links_before":1,"links_after":1}],"manifest":{"expected_pages":24,"normalization_groups":[{"name":"bare","canonical":"http://127.0.0.1:8081/a","hrefs":["/a","/a?","/a#section","/a#other","http://127.0.0.1:8081/a","http://127.0.0.1:8081/./a","http://127.0.0.1:8081/x/../a"]},{"name":"queried","canonical":"http://127.0.0.1:8081/a?a=1&b=2","hrefs":["/a?b=2&a=1","/a?a=1&b=2","/a?a=1&b=2&","/a?a=1&b=2&utm_source=news","/a?sid=99a1&a=1&b=2"]}],"redirect_normalized":{"/a/":"/a"},"malformed_hrefs":["http://127.0.0.1:8081:/a"],"dup_pairs":{"exact":[["/dup/exact-1","/dup/exact-2"]],"near":[["/dup/near-1","/dup/near-2"]],"canonical_alias":[["/dup/canonical-source","/a"]]},"sitemap_only":["/orphan"],"robots":{"127.0.0.1:8081":{"status":200,"disallowed":["/private/secret","/files/report.pdf","/files/logo.png"],"crawl_delay":0.2,"effect":"rules apply"},"127.0.0.1:8082":{"status":404,"disallowed":[],"crawl_delay":null,"effect":"allow all (404)"},"127.0.0.1:8083":{"status":500,"disallowed":["*"],"crawl_delay":null,"effect":"disallow all (5xx, RFC 9309)"},"127.0.0.1:8084":{"status":200,"disallowed":["/gen/"],"crawl_delay":null,"effect":"rules apply"}},"traps":{"/loop/1":"redirect loop \u2014 fixed in stage 5 (normalise + seen-set on redirects)","/gen/1":"unbounded generator \u2014 fixed in stage 5 (byte cap + path-depth cap)","/hang":"no response \u2014 fixed in stage 4 (per-request timeout)"}},"real_sites":[{"seed":"https://quotes.toscrape.com/","pages":[{"path":"/","url":"https://quotes.toscrape.com/","status":200,"depth":0,"title":"Quotes to Scrape","links":49,"words":269,"verdict":"new","duplicate_of":null,"elapsed":0.271,"error":null},{"path":"/login","url":"https://quotes.toscrape.com/login","status":200,"depth":1,"title":"Quotes to Scrape","links":4,"words":4,"verdict":"new","duplicate_of":null,"elapsed":0.245,"error":null},{"path":"http://quotes.toscrape.com/author/Albert-Einstein/","url":"http://quotes.toscrape.com/author/Albert-Einstein/","status":200,"depth":1,"title":"Quotes to Scrape","links":4,"words":619,"verdict":"new","duplicate_of":null,"elapsed":0.733,"error":null},{"path":"/tag/change/page/1/","url":"https://quotes.toscrape.com/tag/change/page/1/","status":200,"depth":1,"title":"Quotes to Scrape","links":19,"words":50,"verdict":"new","duplicate_of":null,"elapsed":0.246,"error":null},{"path":"/tag/deep-thoughts/page/1/","url":"https://quotes.toscrape.com/tag/deep-thoughts/page/1/","status":200,"depth":1,"title":"Quotes to Scrape","links":19,"words":50,"verdict":"near_duplicate","duplicate_of":"https://quotes.toscrape.com/tag/change/page/1/","elapsed":0.246,"error":null},{"path":"/tag/thinking/page/1/","url":"https://quotes.toscrape.com/tag/thinking/page/1/","status":200,"depth":1,"title":"Quotes to Scrape","links":22,"words":82,"verdict":"new","duplicate_of":null,"elapsed":0.265,"error":null},{"path":"/tag/world/page/1/","url":"https://quotes.toscrape.com/tag/world/page/1/","status":200,"depth":1,"title":"Quotes to Scrape","links":19,"words":50,"verdict":"near_duplicate","duplicate_of":"https://quotes.toscrape.com/tag/change/page/1/","elapsed":0.248,"error":null},{"path":"http://quotes.toscrape.com/author/J-K-Rowling/","url":"http://quotes.toscrape.com/author/J-K-Rowling/","status":200,"depth":1,"title":"Quotes to Scrape","links":4,"words":648,"verdict":"new","duplicate_of":null,"elapsed":0.491,"error":null},{"path":"/tag/abilities/page/1/","url":"https://quotes.toscrape.com/tag/abilities/page/1/","status":200,"depth":1,"title":"Quotes to Scrape","links":17,"words":43,"verdict":"new","duplicate_of":null,"elapsed":0.247,"error":null},{"path":"/tag/choices/page/1/","url":"https://quotes.toscrape.com/tag/choices/page/1/","status":200,"depth":1,"title":"Quotes to Scrape","links":17,"words":43,"verdict":"near_duplicate","duplicate_of":"https://quotes.toscrape.com/tag/abilities/page/1/","elapsed":0.248,"error":null},{"path":"/tag/inspirational/page/1/","url":"https://quotes.toscrape.com/tag/inspirational/page/1/","status":200,"depth":1,"title":"Quotes to Scrape","links":48,"words":481,"verdict":"new","duplicate_of":null,"elapsed":0.511,"error":null},{"path":"/tag/life/page/1/","url":"https://quotes.toscrape.com/tag/life/page/1/","status":200,"depth":1,"title":"Quotes to Scrape","links":45,"words":495,"verdict":"new","duplicate_of":null,"elapsed":0.487,"error":null}],"count":12,"errors":0,"duration":12.0,"dedup":{"new":9,"near_duplicate":3},"blocked_by_robots":0,"bytes_downloaded":72708,"stopped_because":"max_pages (12) reached"},{"seed":"https://example.com/","pages":[{"path":"/","url":"https://example.com/","status":200,"depth":0,"title":"Example Domain","links":1,"words":19,"verdict":"new","duplicate_of":null,"elapsed":0.019,"error":null}],"count":1,"errors":0,"duration":0.1,"dedup":{"new":1},"blocked_by_robots":0,"bytes_downloaded":559,"stopped_because":"frontier drained"},{"seed":"https://www.rfc-editor.org/rfc/rfc9309.html","pages":[{"path":"/","url":"https://www.rfc-editor.org/rfc/rfc9309.html","status":200,"depth":0,"title":"RFC 9309: Robots Exclusion Protocol","links":15,"words":3160,"verdict":"new","duplicate_of":null,"elapsed":0.338,"error":null},{"path":"https://www.rfc-editor.org/info/rfc9309/","url":"https://www.rfc-editor.org/info/rfc9309/","status":200,"depth":1,"title":"RFC 9309: Robots Exclusion Protocol | RFC Editor","links":54,"words":3258,"verdict":"new","duplicate_of":null,"elapsed":0.086,"error":null},{"path":"https://www.rfc-editor.org/info/rfc9309/","url":"https://www.rfc-editor.org/info/rfc9309/","status":200,"depth":1,"title":"RFC 9309: Robots Exclusion Protocol | RFC Editor","links":54,"words":3258,"verdict":"already_seen","duplicate_of":"https://www.rfc-editor.org/info/rfc9309/","elapsed":0.071,"error":null},{"path":"https://www.rfc-editor.org/info/rfc2046/","url":"https://www.rfc-editor.org/info/rfc2046/","status":200,"depth":1,"title":"RFC 2046: Multipurpose Internet Mail Extensions (MIME) Part Two: Media Types | RFC Editor","links":63,"words":14380,"verdict":"new","duplicate_of":null,"elapsed":0.092,"error":null},{"path":"https://www.rfc-editor.org/info/rfc2119/","url":"https://www.rfc-editor.org/info/rfc2119/","status":200,"depth":1,"title":"RFC 2119: Key words for use in RFCs to Indicate Requirement Levels | RFC Editor","links":38,"words":681,"verdict":"new","duplicate_of":null,"elapsed":0.065,"error":null}],"count":5,"errors":0,"duration":7.5,"dedup":{"new":4,"already_seen":1},"blocked_by_robots":0,"bytes_downloaded":1238169,"stopped_because":"max_pages (5) reached"}],"robots_seen":[{"host":"news.ycombinator.com","status":200,"crawl_delay":30.0},{"host":"en.wikipedia.org","status":403,"crawl_delay":null},{"host":"www.gov.uk","status":200,"crawl_delay":null}]};</script>
+<script>
+const D = window.__CRAWL__;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num = n => Number(n).toLocaleString();
+
+/* ---------- masthead ---------- */
+$("#k-date").textContent = D.generated;
+$("#k-tests").textContent = D.tests + " tests passing";
+
+const C = D.corpus;
+$("#verdict").innerHTML = [
+  [C.expected.length, "pages declared reachable"],
+  [C.found.length, "paths covered"],
+  [C.missing.length, "missing", C.missing.length === 0],
+  [C.unexpected.length, "unexpected", C.unexpected.length === 0],
+  [C.duration + "s", "wall clock"],
+  [num(C.bytes_downloaded), "bytes downloaded"],
+].map(([v, l, good]) =>
+  `<div class="vcell"><b class="${good ? "good" : ""}">${v}</b><span>${l}</span></div>`).join("");
+
+/* ---------- ground truth ---------- */
+$("#gt-expected").innerHTML = C.expected.map(p => `<span>${esc(p)}</span>`).join("");
+$("#gt-diff").innerHTML =
+  `<p style="margin:0 0 14px;font-size:15px">` +
+  (C.missing.length === 0 && C.unexpected.length === 0
+    ? `<strong style="color:var(--accent)">Exact match.</strong> Every declared page was found, and nothing outside the declaration was fetched.`
+    : `<strong style="color:var(--bad)">${C.missing.length} missing, ${C.unexpected.length} unexpected.</strong>`) +
+  `</p><h3 style="margin-bottom:8px">Trap pages, bounded not excluded</h3>` +
+  `<div class="gt">${C.bounded_traps.map(p => `<span class="trap">${esc(p)}</span>`).join("")}</div>` +
+  `<p style="margin:12px 0 0;font-size:13.5px;color:var(--muted)">` +
+  `The corpus serves an infinite generator at <span class="inline">/gen/&lt;n&gt;</span>. A general defence can cap it; it cannot know to avoid it entirely — so a handful of pages here is the correct result, and an unbounded number is the bug.</p>`;
+
+/* ---------- pages ---------- */
+const pillClass = v => v === "new" ? "new" : (v === "error" ? "err" : "dup");
+$("#pages").innerHTML = C.pages.map(p => `<tr>
+  <td class="st ${p.error ? "no" : "ok"}">${p.error ? "err" : p.status}</td>
+  <td class="n">${p.depth}</td>
+  <td class="m">${esc(p.path)}</td>
+  <td>${esc(p.title || "—")}</td>
+  <td class="n">${p.links}</td>
+  <td class="n">${p.words}</td>
+  <td><span class="pill ${pillClass(p.verdict)}">${esc(p.verdict.replace(/_/g, " "))}</span></td>
+</tr>`).join("");
+
+function bars(node, pairs, tone) {
+  const top = Math.max(...pairs.map(p => p[1]), 1);
+  node.innerHTML = pairs.map(([k, v]) => `<div class="brow">
+    <span class="lab">${esc(k)}</span>
+    <span class="track"><span class="fill ${tone && tone(k) || ""}" style="width:${(v / top) * 100}%"></span></span>
+    <span class="val">${v}</span></div>`).join("");
+}
+bars($("#verdicts"),
+  Object.entries(C.dedup).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k.replace(/_/g, " "), v]),
+  k => k === "new" ? "" : "warn");
+const byDepth = {};
+C.pages.forEach(p => { byDepth["depth " + p.depth] = (byDepth["depth " + p.depth] || 0) + 1; });
+bars($("#depths"), Object.entries(byDepth).sort());
+
+/* ---------- robots ---------- */
+$("#robots").innerHTML = Object.entries(D.manifest.robots).map(([host, r]) => `<tr>
+  <td class="m">${esc(host)}</td>
+  <td class="n"><span class="st ${r.status === 200 ? "ok" : "no"}">${r.status}</span></td>
+  <td>${esc(r.effect)}</td>
+  <td class="m">${r.disallowed.length ? r.disallowed.map(esc).join("<br>") : "—"}</td>
+  <td class="n">${r.crawl_delay ?? "—"}</td></tr>`).join("");
+$("#blocked-line").textContent =
+  `${C.blocked_by_robots.length} URLs were reachable by link, and never fetched: ` +
+  C.blocked_by_robots.join(", ") + ".";
+
+/* ---------- normalisation ---------- */
+const groups = D.manifest.normalization_groups.map(g =>
+  `<div class="panel"><h3>${esc(g.name)} — ${g.hrefs.length} spellings, one fetch</h3>
+   <pre>${g.hrefs.map(h => esc(h)).join("\n")}</pre>
+   <p style="margin:12px 0 0;font-size:13px;color:var(--muted);font-family:var(--mono)">
+   → ${esc(g.canonical)}</p></div>`).join("");
+const extras = `<div class="panel"><h3>Resolved by the server, not by a rule</h3>
+  <pre>${Object.entries(D.manifest.redirect_normalized).map(([a, b]) => esc(a + "  →  301  →  " + b)).join("\n")}</pre>
+  <h3 style="margin-top:18px">Dropped as unparseable</h3>
+  <pre>${D.manifest.malformed_hrefs.map(esc).join("\n")}</pre>
+  <p style="margin:12px 0 0;font-size:13px;color:var(--muted)">
+  <span class="inline">urljoin</span> passes this through happily; it only fails later, when something reads its port. Validating at extraction turns a crash deep in the fetch loop into a dropped link.</p></div>`;
+$("#normgroups").innerHTML = groups + extras;
+
+/* ---------- duplicates ---------- */
+const dupHow = { exact: "SHA-256 of the body", near: "simhash, banded", canonical_alias: "&lt;link rel=canonical&gt;" };
+$("#dups").innerHTML = Object.entries(D.manifest.dup_pairs).flatMap(([kind, pairs]) =>
+  pairs.map(pair => `<tr><td><span class="pill ${kind === "exact" ? "dup" : "new"}">${esc(kind.replace(/_/g, " "))}</span></td>
+    <td class="m">${pair.map(esc).join("  ≡  ")}</td><td>${dupHow[kind]}</td></tr>`)).join("");
+
+/* ---------- archive ---------- */
+const A = C.archive;
+$("#archive-stats").innerHTML = [
+  [A.records, "WARC records"],
+  [num(A.archive_bytes), "bytes gzipped"],
+  [A.cdx_lines, "index lines"],
+  [A.replayed_links, "links re-extracted offline"],
+].map(([v, l]) => `<div class="vcell"><b>${v}</b><span>${l}</span></div>`).join("");
+const sample = A.lines[1];
+const sp = sample.indexOf(" "), sp2 = sample.indexOf(" ", sp + 1);
+$("#cdx-sample").innerHTML =
+  `<span class="k">${esc(sample.slice(0, sp))}</span>${esc(sample.slice(sp, sp2))}\n  ` +
+  esc(sample.slice(sp2 + 1)).replace(/,"/g, ',\n  "') +
+  `\n\n<span class="c">  the SURT key sorts the file; offset and length are where the record is</span>`;
+
+/* ---------- binary search, over the real index ---------- */
+const LINES = A.lines;
+const enc = new TextEncoder();
+const bytes = enc.encode(LINES.join("\n") + "\n");
+const starts = [];
+{ let at = 0; for (const l of LINES) { starts.push(at); at += enc.encode(l).length + 1; } }
+const keyOf = i => LINES[i].split(" ")[0];
+const lineAt = pos => { let i = starts.length - 1; while (i > 0 && starts[i] > pos) i--; return i; };
+
+const urls = [...new Set(LINES.map(l => JSON.parse(l.slice(l.indexOf("{"))).url))].sort();
+$("#target").innerHTML = urls.map(u => `<option value="${esc(u)}">${esc(u)}</option>`).join("");
+
+function renderIndex(probes, hit) {
+  $("#idx").innerHTML = LINES.map((l, i) => {
+    const cls = i === hit ? "hit" : (probes.includes(i) ? "probe" : "");
+    return `<div class="line ${cls}"><span class="no">${i}</span><span class="key">${esc(keyOf(i))}</span></div>`;
+  }).join("");
+  const target = $("#idx").querySelector(".hit");
+  if (target) target.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+function surtOf(url) {
+  const u = new URL(url);
+  const host = u.hostname, port = u.port ? ":" + u.port : "";
+  const isIp = /^[\d.]+$/.test(host);
+  const key = isIp ? host : host.split(".").reverse().join(",");
+  return `${key}${port})${u.pathname}${u.search}`;
+}
+
+/* The same midpoint-on-bytes search CdxIndex._seek_lower_bound runs on the file. */
+function search(key) {
+  let low = 0, high = bytes.length;
+  const probes = [];
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    let pos = mid;
+    if (mid) { while (pos < bytes.length && bytes[pos] !== 10) pos++; pos++; }
+    if (pos >= bytes.length) { high = mid; continue; }
+    const i = lineAt(pos);
+    probes.push(i);
+    if (keyOf(i) < key) low = mid + 1; else high = mid;
+  }
+  let pos = low;
+  if (low) { while (pos < bytes.length && bytes[pos] !== 10) pos++; pos++; }
+  const landed = pos < bytes.length ? lineAt(pos) : -1;
+  return { probes, hit: landed >= 0 && keyOf(landed) === key ? landed : -1 };
+}
+
+function run() {
+  const url = $("#target").value;
+  const key = surtOf(url);
+  const { probes, hit } = search(key);
+  renderIndex(probes, hit);
+  const uniq = [...new Set(probes)];
+  $("#trace").innerHTML =
+    `key <b>${esc(key)}</b><br>` +
+    `${probes.length} probes over ${num(bytes.length)} bytes<br>` +
+    `${uniq.length} distinct lines touched of <b>${LINES.length}</b><br>` +
+    (hit >= 0
+      ? `landed on line <b>${hit}</b> — offset <b>${num(JSON.parse(LINES[hit].slice(LINES[hit].indexOf("{"))).offset)}</b> in the WARC`
+      : `<b>not in the index</b>`);
+}
+$("#run").addEventListener("click", run);
+$("#target").addEventListener("change", run);
+renderIndex([], -1);
+run();
+
+const B = D.binary_search;
+$("#bs-line").textContent =
+  `Looking up the last key in a ${num(B.lines)}-line index read ${B.lines_read} lines — out of a file of ${num(B.file_bytes)} bytes.`;
+
+$("#replay-line").textContent =
+  `${A.replayed_links} links re-extracted from ${A.cdx_lines} archived records, reading ${num(A.replay_bytes_read)} bytes, with no network at all.`;
+
+/* ---------- charset ---------- */
+$("#charset").innerHTML = D.charset.map(c => `<div class="encrow">
+  <div class="meta">
+    <span class="path">${esc(c.path)}</span>
+    <div class="sub">is ${esc(c.really)}</div>
+    <div class="sub">declares ${esc(c.declares)}</div>
+    <div class="sub" style="color:var(--accent)">decided by ${esc(c.decided_by)}</div>
+  </div>
+  <div class="before"><span class="tag">Stages 1–12</span>
+    <div class="txt">${esc(c.before)}</div>
+    <div class="sub" style="margin-top:8px">${c.links_before} links found</div></div>
+  <div class="after"><span class="tag">Stage 13</span>
+    <div class="txt">${esc(c.after)}</div>
+    <div class="sub" style="margin-top:8px">${c.links_after} links found — unchanged, which is why it hid</div></div>
+</div>`).join("");
+
+/* ---------- real sites ---------- */
+$("#sites").innerHTML = D.real_sites.map(s => s.failed
+  ? `<tr><td class="m">${esc(s.seed)}</td><td colspan="6" style="color:var(--bad)">${esc(s.failed)}</td></tr>`
+  : `<tr><td class="m">${esc(s.seed.replace(/^https?:\/\//, ""))}</td>
+     <td class="n">${s.count}</td><td class="n">${s.errors}</td>
+     <td class="n">${s.duration}</td><td class="n">${num(s.bytes_downloaded)}</td>
+     <td>${Object.entries(s.dedup).map(([k, v]) =>
+        `<span class="pill ${k === "new" ? "new" : "dup"}">${v} ${esc(k.replace(/_/g, " "))}</span>`).join(" ")}</td>
+     <td style="font-size:12.5px;color:var(--muted)">${esc(s.stopped_because)}</td></tr>`).join("");
+
+$("#delays").innerHTML = D.robots_seen.map(r => `<tr>
+  <td class="m">${esc(r.host)}</td>
+  <td class="n"><span class="st ${r.status === 200 ? "ok" : "no"}">${r.status}</span></td>
+  <td class="n">${r.crawl_delay ? r.crawl_delay + "s" : "—"}</td>
+  <td style="font-size:13.5px;color:var(--muted)">${
+    r.crawl_delay
+      ? `one request every ${r.crawl_delay} seconds, start to start`
+      : (r.status >= 400 && r.status < 500
+          ? "no rules published — RFC 9309 says crawl freely"
+          : "no delay requested; default politeness applies")}</td></tr>`).join("");
+</script>

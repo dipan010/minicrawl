@@ -1,0 +1,969 @@
+{
+ "generated": "2026-09-06",
+ "tests": 222,
+ "corpus": {
+  "pages": [
+   {
+    "path": "/",
+    "url": "http://127.0.0.1:8081/",
+    "status": 200,
+    "depth": 0,
+    "title": "Index",
+    "links": 23,
+    "words": 8,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.001,
+    "error": null
+   },
+   {
+    "path": "/a",
+    "url": "http://127.0.0.1:8081/a",
+    "status": 200,
+    "depth": 1,
+    "title": "Page A",
+    "links": 2,
+    "words": 47,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.001,
+    "error": null
+   },
+   {
+    "path": "/b",
+    "url": "http://127.0.0.1:8081/b",
+    "status": 200,
+    "depth": 1,
+    "title": "Page B",
+    "links": 2,
+    "words": 7,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.003,
+    "error": null
+   },
+   {
+    "path": "/docs/",
+    "url": "http://127.0.0.1:8081/docs/",
+    "status": 200,
+    "depth": 1,
+    "title": "Docs index",
+    "links": 3,
+    "words": 8,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/variants",
+    "url": "http://127.0.0.1:8081/variants",
+    "status": 200,
+    "depth": 1,
+    "title": "URL variants",
+    "links": 9,
+    "words": 23,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/dup/exact-1",
+    "url": "http://127.0.0.1:8081/dup/exact-1",
+    "status": 200,
+    "depth": 1,
+    "title": "Duplicate",
+    "links": 1,
+    "words": 36,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/dup/exact-2",
+    "url": "http://127.0.0.1:8081/dup/exact-2",
+    "status": 200,
+    "depth": 1,
+    "title": "Duplicate",
+    "links": 1,
+    "words": 36,
+    "verdict": "exact_duplicate",
+    "duplicate_of": "http://127.0.0.1:8081/dup/exact-1",
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/dup/near-1",
+    "url": "http://127.0.0.1:8081/dup/near-1",
+    "status": 200,
+    "depth": 1,
+    "title": "Near duplicate one",
+    "links": 3,
+    "words": 443,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.002,
+    "error": null
+   },
+   {
+    "path": "/dup/canonical-source",
+    "url": "http://127.0.0.1:8081/dup/canonical-source",
+    "status": 200,
+    "depth": 1,
+    "title": "Canonical points elsewhere",
+    "links": 1,
+    "words": 11,
+    "verdict": "canonical_alias",
+    "duplicate_of": "http://127.0.0.1:8081/a",
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/a",
+    "url": "http://127.0.0.1:8081/a",
+    "status": 200,
+    "depth": 1,
+    "title": "Page A",
+    "links": 2,
+    "words": 47,
+    "verdict": "already_seen",
+    "duplicate_of": "http://127.0.0.1:8081/a",
+    "elapsed": 0.008,
+    "error": null
+   },
+   {
+    "path": "/slow",
+    "url": "http://127.0.0.1:8081/slow",
+    "status": 200,
+    "depth": 1,
+    "title": "Slow page",
+    "links": 1,
+    "words": 6,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.806,
+    "error": null
+   },
+   {
+    "path": "/js-only",
+    "url": "http://127.0.0.1:8081/js-only",
+    "status": 200,
+    "depth": 1,
+    "title": "Client rendered",
+    "links": 0,
+    "words": 2,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.002,
+    "error": null
+   },
+   {
+    "path": "/etag",
+    "url": "http://127.0.0.1:8081/etag",
+    "status": 200,
+    "depth": 1,
+    "title": "Cacheable",
+    "links": 1,
+    "words": 5,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/volatile",
+    "url": "http://127.0.0.1:8081/volatile",
+    "status": 200,
+    "depth": 1,
+    "title": "Volatile",
+    "links": 1,
+    "words": 6,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.002,
+    "error": null
+   },
+   {
+    "path": "/compressed",
+    "url": "http://127.0.0.1:8081/compressed",
+    "status": 200,
+    "depth": 1,
+    "title": "Compressed",
+    "links": 1,
+    "words": 20,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/encoded/latin1",
+    "url": "http://127.0.0.1:8081/encoded/latin1",
+    "status": 200,
+    "depth": 1,
+    "title": "Latin-1 caf\u00e9",
+    "links": 1,
+    "words": 13,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.006,
+    "error": null
+   },
+   {
+    "path": "/encoded/mislabelled",
+    "url": "http://127.0.0.1:8081/encoded/mislabelled",
+    "status": 200,
+    "depth": 1,
+    "title": "Mislabelled caf\u00e9",
+    "links": 1,
+    "words": 13,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.003,
+    "error": null
+   },
+   {
+    "path": "/encoded/undeclared",
+    "url": "http://127.0.0.1:8081/encoded/undeclared",
+    "status": 200,
+    "depth": 1,
+    "title": "Undeclared caf\u00e9",
+    "links": 1,
+    "words": 15,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.003,
+    "error": null
+   },
+   {
+    "path": "/private/public-corner",
+    "url": "http://127.0.0.1:8081/private/public-corner",
+    "status": 200,
+    "depth": 1,
+    "title": "Allowed exception",
+    "links": 1,
+    "words": 7,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/gen/1",
+    "url": "http://127.0.0.1:8081/gen/1",
+    "status": 200,
+    "depth": 1,
+    "title": "Generated 1",
+    "links": 2,
+    "words": 10607,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/hosts",
+    "url": "http://127.0.0.1:8081/hosts",
+    "status": 200,
+    "depth": 1,
+    "title": "Other hosts",
+    "links": 4,
+    "words": 8,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/c",
+    "url": "http://127.0.0.1:8081/c",
+    "status": 200,
+    "depth": 2,
+    "title": "Page C",
+    "links": 1,
+    "words": 9,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.001,
+    "error": null
+   },
+   {
+    "path": "/docs/one",
+    "url": "http://127.0.0.1:8081/docs/one",
+    "status": 200,
+    "depth": 2,
+    "title": "Docs one",
+    "links": 1,
+    "words": 3,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.003,
+    "error": null
+   },
+   {
+    "path": "/docs/two",
+    "url": "http://127.0.0.1:8081/docs/two",
+    "status": 200,
+    "depth": 2,
+    "title": "Docs two",
+    "links": 1,
+    "words": 3,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.002,
+    "error": null
+   },
+   {
+    "path": "/docs/sub/three",
+    "url": "http://127.0.0.1:8081/docs/sub/three",
+    "status": 200,
+    "depth": 2,
+    "title": "Docs three",
+    "links": 1,
+    "words": 3,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/a?a=1&b=2",
+    "url": "http://127.0.0.1:8081/a?a=1&b=2",
+    "status": 200,
+    "depth": 2,
+    "title": "Page A",
+    "links": 2,
+    "words": 47,
+    "verdict": "exact_duplicate",
+    "duplicate_of": "http://127.0.0.1:8081/a",
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/a",
+    "url": "http://127.0.0.1:8081/a",
+    "status": 200,
+    "depth": 2,
+    "title": "Page A",
+    "links": 2,
+    "words": 47,
+    "verdict": "already_seen",
+    "duplicate_of": "http://127.0.0.1:8081/a",
+    "elapsed": 0.002,
+    "error": null
+   },
+   {
+    "path": "/dup/near-2",
+    "url": "http://127.0.0.1:8081/dup/near-2",
+    "status": 200,
+    "depth": 2,
+    "title": "Near duplicate two",
+    "links": 1,
+    "words": 443,
+    "verdict": "near_duplicate",
+    "duplicate_of": "http://127.0.0.1:8081/dup/near-1",
+    "elapsed": 0.003,
+    "error": null
+   },
+   {
+    "path": "/gen/2",
+    "url": "http://127.0.0.1:8081/gen/2",
+    "status": 200,
+    "depth": 2,
+    "title": "Generated 2",
+    "links": 2,
+    "words": 10607,
+    "verdict": "near_duplicate",
+    "duplicate_of": "http://127.0.0.1:8081/gen/1",
+    "elapsed": 0.004,
+    "error": null
+   },
+   {
+    "path": "/gen/3",
+    "url": "http://127.0.0.1:8081/gen/3",
+    "status": 200,
+    "depth": 2,
+    "title": "Generated 3",
+    "links": 2,
+    "words": 10607,
+    "verdict": "near_duplicate",
+    "duplicate_of": "http://127.0.0.1:8081/gen/1",
+    "elapsed": 0.002,
+    "error": null
+   }
+  ],
+  "errors": [
+   {
+    "path": "/loop/1",
+    "url": "http://127.0.0.1:8081/loop/1",
+    "status": null,
+    "depth": 1,
+    "title": "",
+    "links": 0,
+    "words": 0,
+    "verdict": "new",
+    "duplicate_of": null,
+    "elapsed": 0.01,
+    "error": "redirect_loop"
+   }
+  ],
+  "duration": 6.97,
+  "workers": 4,
+  "peak_in_flight": 1,
+  "peak_per_host": {
+   "127.0.0.1:8081": 1
+  },
+  "dedup": {
+   "new": 22,
+   "exact_duplicate": 2,
+   "canonical_alias": 1,
+   "already_seen": 2,
+   "near_duplicate": 3
+  },
+  "blocked_by_robots": [
+   "/files/report.pdf",
+   "/private/secret"
+  ],
+  "rejected_by_traps": {},
+  "bytes_downloaded": 211516,
+  "stopped_because": "frontier drained",
+  "expected": [
+   "/",
+   "/a",
+   "/b",
+   "/c",
+   "/compressed",
+   "/docs/",
+   "/docs/one",
+   "/docs/sub/three",
+   "/docs/two",
+   "/dup/canonical-source",
+   "/dup/exact-1",
+   "/dup/exact-2",
+   "/dup/near-1",
+   "/dup/near-2",
+   "/encoded/latin1",
+   "/encoded/mislabelled",
+   "/encoded/undeclared",
+   "/etag",
+   "/hosts",
+   "/js-only",
+   "/private/public-corner",
+   "/slow",
+   "/variants",
+   "/volatile"
+  ],
+  "found": [
+   "/",
+   "/a",
+   "/b",
+   "/c",
+   "/compressed",
+   "/docs/",
+   "/docs/one",
+   "/docs/sub/three",
+   "/docs/two",
+   "/dup/canonical-source",
+   "/dup/exact-1",
+   "/dup/exact-2",
+   "/dup/near-1",
+   "/dup/near-2",
+   "/encoded/latin1",
+   "/encoded/mislabelled",
+   "/encoded/undeclared",
+   "/etag",
+   "/gen/1",
+   "/gen/2",
+   "/gen/3",
+   "/hosts",
+   "/js-only",
+   "/private/public-corner",
+   "/slow",
+   "/variants",
+   "/volatile"
+  ],
+  "missing": [],
+  "unexpected": [],
+  "bounded_traps": [
+   "/gen/1",
+   "/gen/2",
+   "/gen/3"
+  ],
+  "archive": {
+   "records": 31,
+   "bytes": 23700,
+   "cdx_lines": 30,
+   "lines": [
+    "127.0.0.1:8081)/ 20260906071207 {\"digest\": \"sha256:8e3102dcabde7b78c4e29e9af3bb1eb8efc01c3986b82958743f372467b60f97\", \"filename\": \"d.warc.gz\", \"length\": 811, \"mime\": \"text/html\", \"offset\": 311, \"status\": 200, \"url\": \"http://127.0.0.1:8081/\"}",
+    "127.0.0.1:8081)/a 20260906071207 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 713, \"mime\": \"text/html\", \"offset\": 1122, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}",
+    "127.0.0.1:8081)/a 20260906071208 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 710, \"mime\": \"text/html\", \"offset\": 7517, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}",
+    "127.0.0.1:8081)/a 20260906071213 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 714, \"mime\": \"text/html\", \"offset\": 18541, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}",
+    "127.0.0.1:8081)/a?a=1&b=2 20260906071213 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 720, \"mime\": \"text/html\", \"offset\": 17821, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a?a=1&b=2\"}",
+    "127.0.0.1:8081)/b 20260906071207 {\"digest\": \"sha256:8396a52adc96627e0724be8b9e3698fdfb9cefd77dafc391852f3a43567672f1\", \"filename\": \"d.warc.gz\", \"length\": 577, \"mime\": \"text/html\", \"offset\": 1835, \"status\": 200, \"url\": \"http://127.0.0.1:8081/b\"}",
+    "127.0.0.1:8081)/c 20260906071212 {\"digest\": \"sha256:91c87cc308bb6680844578f389ae5080d6231baa6b9b048d477a476dc5e7489d\", \"filename\": \"d.warc.gz\", \"length\": 572, \"mime\": \"text/html\", \"offset\": 15569, \"status\": 200, \"url\": \"http://127.0.0.1:8081/c\"}",
+    "127.0.0.1:8081)/compressed 20260906071210 {\"digest\": \"sha256:8af0ef851d90a7d1aabc983bd7c95ba8a4346611c696af0a9775c7e88dcddd7c\", \"filename\": \"d.warc.gz\", \"length\": 619, \"mime\": \"text/html\", \"offset\": 10597, \"status\": 200, \"url\": \"http://127.0.0.1:8081/compressed\"}",
+    "127.0.0.1:8081)/docs/ 20260906071207 {\"digest\": \"sha256:29cdbb3a407f96e221870c0ca3ef5e1f70ad08340542a8fe4ef4a74a154c9167\", \"filename\": \"d.warc.gz\", \"length\": 617, \"mime\": \"text/html\", \"offset\": 2412, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/\"}",
+    "127.0.0.1:8081)/docs/one 20260906071212 {\"digest\": \"sha256:441211b1135f8280505b524c1668a42a0f80e4e8f12502af2d6b2d34f301015e\", \"filename\": \"d.warc.gz\", \"length\": 558, \"mime\": \"text/html\", \"offset\": 16141, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/one\"}",
+    "127.0.0.1:8081)/docs/sub/three 20260906071213 {\"digest\": \"sha256:bb69f9e44c610c3e7d5eefd8f3e5cb3eda4267131ad59c1eabb1aa8334815e0c\", \"filename\": \"d.warc.gz\", \"length\": 560, \"mime\": \"text/html\", \"offset\": 17261, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/sub/three\"}",
+    "127.0.0.1:8081)/docs/two 20260906071212 {\"digest\": \"sha256:bdc119e5b4453e141d8ad15c2d63694e5d2db2e07a0bb372cc15bc158867230b\", \"filename\": \"d.warc.gz\", \"length\": 562, \"mime\": \"text/html\", \"offset\": 16699, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/two\"}",
+    "127.0.0.1:8081)/dup/canonical-source 20260906071208 {\"digest\": \"sha256:424390dc5f7c74cf564b521ec3b7261e00df0baa700a4cbfbbf9f538b8ed0c89\", \"filename\": \"d.warc.gz\", \"length\": 617, \"mime\": \"text/html\", \"offset\": 6900, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/canonical-source\"}",
+    "127.0.0.1:8081)/dup/exact-1 20260906071208 {\"digest\": \"sha256:8d3ade3ecc2863d2d3fa92bc52d723bd7fd436313bdb8a78bcb60c95522be198\", \"filename\": \"d.warc.gz\", \"length\": 682, \"mime\": \"text/html\", \"offset\": 3762, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/exact-1\"}",
+    "127.0.0.1:8081)/dup/exact-2 20260906071208 {\"digest\": \"sha256:8d3ade3ecc2863d2d3fa92bc52d723bd7fd436313bdb8a78bcb60c95522be198\", \"filename\": \"d.warc.gz\", \"length\": 680, \"mime\": \"text/html\", \"offset\": 4444, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/exact-2\"}",
+    "127.0.0.1:8081)/dup/near-1 20260906071208 {\"digest\": \"sha256:9b5920352780f762c84a41bd9de463ea4b5ef6176d7c37b13acc4395e2143b9c\", \"filename\": \"d.warc.gz\", \"length\": 1776, \"mime\": \"text/html\", \"offset\": 5124, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/near-1\"}",
+    "127.0.0.1:8081)/dup/near-2 20260906071213 {\"digest\": \"sha256:617b20e234f23a1a07a05580dc87a2706c651bc22e7b415b2713be1b050651c8\", \"filename\": \"d.warc.gz\", \"length\": 1746, \"mime\": \"text/html\", \"offset\": 19255, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/near-2\"}",
+    "127.0.0.1:8081)/encoded/latin1 20260906071210 {\"digest\": \"sha256:c340fc5f6366e8dd8df2fb671fe5888dabda85a0f3ee3a7cfa66d86cbcf2cdb6\", \"filename\": \"d.warc.gz\", \"length\": 606, \"mime\": \"text/html\", \"offset\": 11216, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/latin1\"}",
+    "127.0.0.1:8081)/encoded/mislabelled 20260906071211 {\"digest\": \"sha256:6db3b0aef9123820a579296c3876439a009bbcb9973ce19989f8c309bdaa1c90\", \"filename\": \"d.warc.gz\", \"length\": 613, \"mime\": \"text/html\", \"offset\": 11822, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/mislabelled\"}",
+    "127.0.0.1:8081)/encoded/undeclared 20260906071211 {\"digest\": \"sha256:fa37dd9d0a1dabb7671fcb1214e389cb346999acf8d3d46bd9b1cd6e1b9a8e9c\", \"filename\": \"d.warc.gz\", \"length\": 598, \"mime\": \"text/html\", \"offset\": 12435, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/undeclared\"}",
+    "127.0.0.1:8081)/etag 20260906071210 {\"digest\": \"sha256:8c8cd2491a3af8f382af2bef8575729352d968b8deb56bfa4faaabf67fbbf6ff\", \"filename\": \"d.warc.gz\", \"length\": 559, \"mime\": \"text/html\", \"offset\": 9466, \"status\": 200, \"url\": \"http://127.0.0.1:8081/etag\"}",
+    "127.0.0.1:8081)/gen/1 20260906071211 {\"digest\": \"sha256:bc6a80d5b75ce3c5d7120303311323fce44c76a9ceb35cec88d62b72ec5fbb07\", \"filename\": \"d.warc.gz\", \"length\": 1348, \"mime\": \"text/html\", \"offset\": 13619, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/1\"}",
+    "127.0.0.1:8081)/gen/2 20260906071213 {\"digest\": \"sha256:e883831b480673d574b46aebbd96ba80f36f6f1b3c7297d0ee6d0e7c0e8a6920\", \"filename\": \"d.warc.gz\", \"length\": 1350, \"mime\": \"text/html\", \"offset\": 21001, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/2\"}",
+    "127.0.0.1:8081)/gen/3 20260906071214 {\"digest\": \"sha256:281e535c475ca273aa09e14a825fc8b190f22adbe6a61305cd3072b98e096e73\", \"filename\": \"d.warc.gz\", \"length\": 1349, \"mime\": \"text/html\", \"offset\": 22351, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/3\"}",
+    "127.0.0.1:8081)/hosts 20260906071212 {\"digest\": \"sha256:a2ccb874aa6a75bca741c23b2272f1c0158b7947b8f047a5afe74f9b27ae2104\", \"filename\": \"d.warc.gz\", \"length\": 602, \"mime\": \"text/html\", \"offset\": 14967, \"status\": 200, \"url\": \"http://127.0.0.1:8081/hosts\"}",
+    "127.0.0.1:8081)/js-only 20260906071210 {\"digest\": \"sha256:6e679af79e602bb6124e05c602864b0a5b1cb34f8afaa65f5c8dc08d96dc016e\", \"filename\": \"d.warc.gz\", \"length\": 676, \"mime\": \"text/html\", \"offset\": 8790, \"status\": 200, \"url\": \"http://127.0.0.1:8081/js-only\"}",
+    "127.0.0.1:8081)/private/public-corner 20260906071211 {\"digest\": \"sha256:9e44bca80ca9ede5f733949efac48c5ec07e184f801a0d5c431168206b11b9a3\", \"filename\": \"d.warc.gz\", \"length\": 586, \"mime\": \"text/html\", \"offset\": 13033, \"status\": 200, \"url\": \"http://127.0.0.1:8081/private/public-corner\"}",
+    "127.0.0.1:8081)/slow 20260906071210 {\"digest\": \"sha256:8a56309b206dd7ea1c50606d9ba0a66c175fd559cf99d0fd3ffa34119828b5cc\", \"filename\": \"d.warc.gz\", \"length\": 563, \"mime\": \"text/html\", \"offset\": 8227, \"status\": 200, \"url\": \"http://127.0.0.1:8081/slow\"}",
+    "127.0.0.1:8081)/variants 20260906071207 {\"digest\": \"sha256:9d734459066587337494f4fed2219ed21b1b0e7c4e7fbdee8b1415535fa441fe\", \"filename\": \"d.warc.gz\", \"length\": 733, \"mime\": \"text/html\", \"offset\": 3029, \"status\": 200, \"url\": \"http://127.0.0.1:8081/variants\"}",
+    "127.0.0.1:8081)/volatile 20260906071210 {\"digest\": \"sha256:882d311f9245b6affd508d85ba0c469ef420f10474154a0565b4543beb6c2cc1\", \"filename\": \"d.warc.gz\", \"length\": 572, \"mime\": \"text/html\", \"offset\": 10025, \"status\": 200, \"url\": \"http://127.0.0.1:8081/volatile\"}"
+   ],
+   "replayed_links": 74,
+   "replay_bytes_read": 23394,
+   "archive_bytes": 23700
+  }
+ },
+ "binary_search": {
+  "lines": 20000,
+  "file_bytes": 3808888,
+  "lines_read": 23
+ },
+ "charset": [
+  {
+   "path": "/encoded/latin1",
+   "header": "text/html; charset=windows-1252",
+   "declares": "windows-1252",
+   "really": "windows-1252",
+   "decided_by": "http header",
+   "before": "Latin-1 caf\u00ef\u00bf\u00bd",
+   "after": "Latin-1 caf\u00e9",
+   "links_before": 1,
+   "links_after": 1
+  },
+  {
+   "path": "/encoded/mislabelled",
+   "header": "text/html; charset=windows-1252",
+   "declares": "utf-8",
+   "really": "windows-1252",
+   "decided_by": "http header",
+   "before": "Mislabelled caf\ufffd",
+   "after": "Mislabelled caf\u00e9",
+   "links_before": 1,
+   "links_after": 1
+  },
+  {
+   "path": "/encoded/undeclared",
+   "header": "text/html",
+   "declares": "utf-8",
+   "really": "windows-1252",
+   "decided_by": "fallback",
+   "before": "Undeclared caf\ufffd",
+   "after": "Undeclared caf\u00e9",
+   "links_before": 1,
+   "links_after": 1
+  }
+ ],
+ "manifest": {
+  "expected_pages": 24,
+  "normalization_groups": [
+   {
+    "name": "bare",
+    "canonical": "http://127.0.0.1:8081/a",
+    "hrefs": [
+     "/a",
+     "/a?",
+     "/a#section",
+     "/a#other",
+     "http://127.0.0.1:8081/a",
+     "http://127.0.0.1:8081/./a",
+     "http://127.0.0.1:8081/x/../a"
+    ]
+   },
+   {
+    "name": "queried",
+    "canonical": "http://127.0.0.1:8081/a?a=1&b=2",
+    "hrefs": [
+     "/a?b=2&a=1",
+     "/a?a=1&b=2",
+     "/a?a=1&b=2&",
+     "/a?a=1&b=2&utm_source=news",
+     "/a?sid=99a1&a=1&b=2"
+    ]
+   }
+  ],
+  "redirect_normalized": {
+   "/a/": "/a"
+  },
+  "malformed_hrefs": [
+   "http://127.0.0.1:8081:/a"
+  ],
+  "dup_pairs": {
+   "exact": [
+    [
+     "/dup/exact-1",
+     "/dup/exact-2"
+    ]
+   ],
+   "near": [
+    [
+     "/dup/near-1",
+     "/dup/near-2"
+    ]
+   ],
+   "canonical_alias": [
+    [
+     "/dup/canonical-source",
+     "/a"
+    ]
+   ]
+  },
+  "sitemap_only": [
+   "/orphan"
+  ],
+  "robots": {
+   "127.0.0.1:8081": {
+    "status": 200,
+    "disallowed": [
+     "/private/secret",
+     "/files/report.pdf",
+     "/files/logo.png"
+    ],
+    "crawl_delay": 0.2,
+    "effect": "rules apply"
+   },
+   "127.0.0.1:8082": {
+    "status": 404,
+    "disallowed": [],
+    "crawl_delay": null,
+    "effect": "allow all (404)"
+   },
+   "127.0.0.1:8083": {
+    "status": 500,
+    "disallowed": [
+     "*"
+    ],
+    "crawl_delay": null,
+    "effect": "disallow all (5xx, RFC 9309)"
+   },
+   "127.0.0.1:8084": {
+    "status": 200,
+    "disallowed": [
+     "/gen/"
+    ],
+    "crawl_delay": null,
+    "effect": "rules apply"
+   }
+  },
+  "traps": {
+   "/loop/1": "redirect loop \u2014 fixed in stage 5 (normalise + seen-set on redirects)",
+   "/gen/1": "unbounded generator \u2014 fixed in stage 5 (byte cap + path-depth cap)",
+   "/hang": "no response \u2014 fixed in stage 4 (per-request timeout)"
+  }
+ },
+ "real_sites": [
+  {
+   "seed": "https://quotes.toscrape.com/",
+   "pages": [
+    {
+     "path": "/",
+     "url": "https://quotes.toscrape.com/",
+     "status": 200,
+     "depth": 0,
+     "title": "Quotes to Scrape",
+     "links": 49,
+     "words": 269,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.271,
+     "error": null
+    },
+    {
+     "path": "/login",
+     "url": "https://quotes.toscrape.com/login",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 4,
+     "words": 4,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.245,
+     "error": null
+    },
+    {
+     "path": "http://quotes.toscrape.com/author/Albert-Einstein/",
+     "url": "http://quotes.toscrape.com/author/Albert-Einstein/",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 4,
+     "words": 619,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.733,
+     "error": null
+    },
+    {
+     "path": "/tag/change/page/1/",
+     "url": "https://quotes.toscrape.com/tag/change/page/1/",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 19,
+     "words": 50,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.246,
+     "error": null
+    },
+    {
+     "path": "/tag/deep-thoughts/page/1/",
+     "url": "https://quotes.toscrape.com/tag/deep-thoughts/page/1/",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 19,
+     "words": 50,
+     "verdict": "near_duplicate",
+     "duplicate_of": "https://quotes.toscrape.com/tag/change/page/1/",
+     "elapsed": 0.246,
+     "error": null
+    },
+    {
+     "path": "/tag/thinking/page/1/",
+     "url": "https://quotes.toscrape.com/tag/thinking/page/1/",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 22,
+     "words": 82,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.265,
+     "error": null
+    },
+    {
+     "path": "/tag/world/page/1/",
+     "url": "https://quotes.toscrape.com/tag/world/page/1/",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 19,
+     "words": 50,
+     "verdict": "near_duplicate",
+     "duplicate_of": "https://quotes.toscrape.com/tag/change/page/1/",
+     "elapsed": 0.248,
+     "error": null
+    },
+    {
+     "path": "http://quotes.toscrape.com/author/J-K-Rowling/",
+     "url": "http://quotes.toscrape.com/author/J-K-Rowling/",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 4,
+     "words": 648,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.491,
+     "error": null
+    },
+    {
+     "path": "/tag/abilities/page/1/",
+     "url": "https://quotes.toscrape.com/tag/abilities/page/1/",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 17,
+     "words": 43,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.247,
+     "error": null
+    },
+    {
+     "path": "/tag/choices/page/1/",
+     "url": "https://quotes.toscrape.com/tag/choices/page/1/",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 17,
+     "words": 43,
+     "verdict": "near_duplicate",
+     "duplicate_of": "https://quotes.toscrape.com/tag/abilities/page/1/",
+     "elapsed": 0.248,
+     "error": null
+    },
+    {
+     "path": "/tag/inspirational/page/1/",
+     "url": "https://quotes.toscrape.com/tag/inspirational/page/1/",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 48,
+     "words": 481,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.511,
+     "error": null
+    },
+    {
+     "path": "/tag/life/page/1/",
+     "url": "https://quotes.toscrape.com/tag/life/page/1/",
+     "status": 200,
+     "depth": 1,
+     "title": "Quotes to Scrape",
+     "links": 45,
+     "words": 495,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.487,
+     "error": null
+    }
+   ],
+   "count": 12,
+   "errors": 0,
+   "duration": 12.0,
+   "dedup": {
+    "new": 9,
+    "near_duplicate": 3
+   },
+   "blocked_by_robots": 0,
+   "bytes_downloaded": 72708,
+   "stopped_because": "max_pages (12) reached"
+  },
+  {
+   "seed": "https://example.com/",
+   "pages": [
+    {
+     "path": "/",
+     "url": "https://example.com/",
+     "status": 200,
+     "depth": 0,
+     "title": "Example Domain",
+     "links": 1,
+     "words": 19,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.019,
+     "error": null
+    }
+   ],
+   "count": 1,
+   "errors": 0,
+   "duration": 0.1,
+   "dedup": {
+    "new": 1
+   },
+   "blocked_by_robots": 0,
+   "bytes_downloaded": 559,
+   "stopped_because": "frontier drained"
+  },
+  {
+   "seed": "https://www.rfc-editor.org/rfc/rfc9309.html",
+   "pages": [
+    {
+     "path": "/",
+     "url": "https://www.rfc-editor.org/rfc/rfc9309.html",
+     "status": 200,
+     "depth": 0,
+     "title": "RFC 9309: Robots Exclusion Protocol",
+     "links": 15,
+     "words": 3160,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.338,
+     "error": null
+    },
+    {
+     "path": "https://www.rfc-editor.org/info/rfc9309/",
+     "url": "https://www.rfc-editor.org/info/rfc9309/",
+     "status": 200,
+     "depth": 1,
+     "title": "RFC 9309: Robots Exclusion Protocol | RFC Editor",
+     "links": 54,
+     "words": 3258,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.086,
+     "error": null
+    },
+    {
+     "path": "https://www.rfc-editor.org/info/rfc9309/",
+     "url": "https://www.rfc-editor.org/info/rfc9309/",
+     "status": 200,
+     "depth": 1,
+     "title": "RFC 9309: Robots Exclusion Protocol | RFC Editor",
+     "links": 54,
+     "words": 3258,
+     "verdict": "already_seen",
+     "duplicate_of": "https://www.rfc-editor.org/info/rfc9309/",
+     "elapsed": 0.071,
+     "error": null
+    },
+    {
+     "path": "https://www.rfc-editor.org/info/rfc2046/",
+     "url": "https://www.rfc-editor.org/info/rfc2046/",
+     "status": 200,
+     "depth": 1,
+     "title": "RFC 2046: Multipurpose Internet Mail Extensions (MIME) Part Two: Media Types | RFC Editor",
+     "links": 63,
+     "words": 14380,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.092,
+     "error": null
+    },
+    {
+     "path": "https://www.rfc-editor.org/info/rfc2119/",
+     "url": "https://www.rfc-editor.org/info/rfc2119/",
+     "status": 200,
+     "depth": 1,
+     "title": "RFC 2119: Key words for use in RFCs to Indicate Requirement Levels | RFC Editor",
+     "links": 38,
+     "words": 681,
+     "verdict": "new",
+     "duplicate_of": null,
+     "elapsed": 0.065,
+     "error": null
+    }
+   ],
+   "count": 5,
+   "errors": 0,
+   "duration": 7.5,
+   "dedup": {
+    "new": 4,
+    "already_seen": 1
+   },
+   "blocked_by_robots": 0,
+   "bytes_downloaded": 1238169,
+   "stopped_because": "max_pages (5) reached"
+  }
+ ],
+ "robots_seen": [
+  {
+   "host": "news.ycombinator.com",
+   "status": 200,
+   "crawl_delay": 30.0
+  },
+  {
+   "host": "en.wikipedia.org",
+   "status": 403,
+   "crawl_delay": null
+  },
+  {
+   "host": "www.gov.uk",
+   "status": 200,
+   "crawl_delay": null
+  }
+ ]
+}
