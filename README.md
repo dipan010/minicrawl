@@ -41,6 +41,121 @@ against the ground-truth manifest.
 | 13 ✅ | `web/`, `charset.py` | A browser front end, and the real web finding a twelve-stage bug |
 | 14 ✅ | `web/policy.py`, `Dockerfile` | Exposing it publicly: SSRF, rate limits, fail-safe defaults |
 
+## Design
+
+The full write-up — ten diagrams, high- and low-level — is in
+**[docs/design.md](docs/design.md)**. The two that matter most:
+
+### What the pieces are
+
+A crawler is a loop with a queue in the middle. Everything else is a defence
+against the ways that loop goes wrong: the same page under fourteen names, a
+server that generates pages forever, a site that asks you to slow down, a
+document you already have.
+
+```mermaid
+flowchart LR
+  seeds([Seed URLs]):::io --> FR
+
+  subgraph core["The loop"]
+    direction LR
+    FR[["Frontier<br/><i>what to fetch next</i>"]]:::core
+    W(["Worker pool<br/><i>N coroutines</i>"]):::core
+    FE["Fetch<br/><i>httpx, byte cap</i>"]:::core
+    EX["Extract<br/><i>decode, parse, links</i>"]:::core
+    FR -->|acquire| W --> FE --> EX
+    EX -->|new links| FR
+  end
+
+  subgraph gates["Gates — asked before a request is made"]
+    RO["robots.txt<br/>RFC 9309"]:::gate
+    PO["Politeness<br/>per host:port"]:::gate
+    TR["Trap guard<br/>URL shape budgets"]:::gate
+    NO["Normalise<br/>RFC 3986"]:::gate
+  end
+
+  subgraph after["Judgement — after the body arrives"]
+    DE["Dedup<br/>SHA-256 · simhash"]:::after
+    RE["Render triage<br/>reasons, not a score"]:::after
+    FRESH["Freshness<br/>ETag · adaptive"]:::after
+  end
+
+  subgraph out["Outputs"]
+    ST[("Content store<br/>content-addressed")]:::io
+    WA[("WARC 1.1<br/>gzip member each")]:::io
+    CX[("CDX index<br/>sorted, SURT")]:::io
+  end
+
+  W -.consults.-> RO & PO & TR
+  EX -.-> NO -.-> FR
+  EX --> DE & RE
+  FE <-.-> FRESH
+  EX --> ST & WA
+  WA --> CX
+  CX --> RP["Replay<br/><i>offline re-extraction</i>"]:::after
+
+  classDef core fill:#1f5e4b,stroke:#123c30,color:#fff
+  classDef gate fill:#b07a16,stroke:#7d5610,color:#fff
+  classDef after fill:#2f4858,stroke:#1d2d38,color:#fff
+  classDef io fill:#efece4,stroke:#c9c5ba,color:#1a1a17
+```
+
+Three boundaries do real work. The **frontier is an interface**, so persistence
+and distribution are storage choices rather than rewrites. The **gates run
+before the request**, because a check after the fetch is an audit, not a
+defence. And the **outputs are downstream of extraction**, so a crawl with a
+store behaves identically to one without — `NullStore` exists to make that
+literal.
+
+### What happens to one URL
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant W as Worker
+  participant F as Frontier
+  participant R as RobotsCache
+  participant P as Politeness
+  participant H as Origin server
+  participant X as extract
+  participant D as DuplicateIndex
+  participant S as Store / WARC
+
+  W->>F: acquire()
+  F-->>W: Request(url, depth, priority)
+  Note over F: only if the host is idle<br/>and past its next-allowed time
+
+  W->>R: allows(url)?
+  alt disallowed
+    R-->>W: no
+    W->>F: release(done=True)
+    Note right of W: counted as blocked_by_robots,<br/>never fetched
+  else allowed
+    R-->>W: yes + crawl_delay
+    W->>P: wait_turn(host)
+    W->>H: GET (If-None-Match if known)
+    alt 304 Not Modified
+      H-->>W: 304, no body
+      Note over W: a third outcome, not an error.<br/>Links come from the freshness store,<br/>or the crawl goes blind.
+    else 200
+      H-->>W: status, headers, body (byte-capped)
+      W->>X: parse(body, url, content-type)
+      X-->>W: title, links, main_text, encoding
+      W->>D: classify(main_text, canonical)
+      D-->>W: new | exact | near | canonical_alias | already_seen
+      W->>S: put(fetched) / write_response(fetched)
+      S-->>W: digest, (offset, length)
+    end
+    W->>F: push(normalised links, depth+1)
+    W->>F: release(done=True)
+  end
+```
+
+`release(done=...)` is not a formality: hitting `max_pages` while holding a
+request must release it as *unfinished*, or a resumed crawl skips it forever.
+And a 304 has no body, so it has no links — the freshness store keeps outlinks
+for exactly that reason, or caching turns a 27-page crawl into a 10-page one.
+
 ## See it without installing anything
 
 **[dipan010.github.io/minicrawl →](https://dipan010.github.io/minicrawl/)**
