@@ -18,7 +18,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         prog="minicrawl-search",
         description="Build a BM25 index from a crawl export, and search it.")
-    ap.add_argument("query", nargs="*", help="words to search for")
+    ap.add_argument("query", nargs="*",
+                    help='words to search for; "quote a phrase" to require '
+                         'those words adjacent and in order')
     ap.add_argument("--build", metavar="JSONL",
                     help="build the index from a --export file")
     ap.add_argument("--index", metavar="PATH", required=True,
@@ -37,6 +39,7 @@ def main(argv=None) -> int:
         stats = index.stats()
         print(f"indexed {added} documents in {elapsed:.2f}s — "
               f"{stats['terms']:,} terms, {stats['postings']:,} postings, "
+              f"{stats['positions']:,} positions, "
               f"avg {stats['avg_length']} terms/doc")
         print(f"  {args.index} ({Path(args.index).stat().st_size:,} bytes)")
         if not args.query:

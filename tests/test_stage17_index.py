@@ -127,7 +127,9 @@ def brute_force(index: Index, query: str, limit: int = 10):
     for doc_id in range(index.n_docs):
         score = 0.0
         for term in terms:
-            frequency = index.postings.get(term, {}).get(doc_id, 0)
+            # Stage 18 changed a posting from a count to a position list;
+            # term frequency is derived from it rather than stored twice.
+            frequency = index.term_frequency(term, doc_id)
             if not frequency:
                 continue
             ratio = index.lengths[doc_id] / avg

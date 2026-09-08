@@ -1,0 +1,107 @@
+STAGE 18 — POSITIONS AND PHRASE QUERIES
+=======================================
+
+GOAL
+----
+Stage 17 stored how often a term occurred. Store WHERE, so a quoted phrase can
+mean what a person means by it: these words, adjacent, in this order.
+
+
+STEPS TAKEN
+-----------
+1. postings: {term: {doc: count}} -> {term: {doc: [positions]}}. Term
+   frequency becomes len(positions), so the count is never stored twice.
+2. FIELD_GAP between title and body so phrases cannot straddle fields.
+3. parse_query(): quoted phrases vs loose terms.
+4. phrase_docs(): positional intersection.
+5. search(): phrases filter, terms score.
+6. Index format v2; v1 refused with an instruction rather than degraded.
+7. Measured the cost of positions instead of repeating the folklore.
+8. 24 tests, plus one stage-17 test updated for the new posting shape.
+
+
+CONCEPTS APPLIED
+----------------
+- Positional postings: the only way to answer adjacency.
+- Derived over stored: tf = len(positions) cannot disagree with itself.
+- Positional intersection: keep starts where start+offset is present.
+- Field gaps: a phrase must not cross a field boundary.
+- Filter vs rank: quotes decide membership, loose terms decide order.
+- Format versioning: refuse, do not silently degrade.
+- Measure, do not quote: "positions triple an index" was 1.6x here, and the
+  reason (few repeats per document in this corpus) matters more than the number.
+
+
+CONCEPT -> CODE MAP
+-------------------
+positions in postings         minicrawl/index.py :: Index.add()
+field gap                     minicrawl/index.py :: FIELD_GAP
+tf derived from positions     minicrawl/index.py :: Index.term_frequency()
+query parsing                 minicrawl/index.py :: parse_query(), Query
+positional intersection       minicrawl/index.py :: Index.phrase_docs()
+phrase as filter              minicrawl/index.py :: Index.search(), `allowed`
+version refusal               minicrawl/index.py :: Index.load()
+cost measurement              scripts/search_bench.py
+
+
+WHAT BROKE
+----------
+1. THE TITLE WEIGHTING INVENTED A PHRASE.
+   Stage 17 weighted titles by indexing them twice — harmless when postings
+   were counts. With positions, the two copies laid end to end turn a title of
+   "Web Crawler" into `web crawler web crawler`, so the index matched the
+   phrase "crawler web", which the document does not contain.
+   Fixed by making the two copies separate fields, each followed by a gap.
+
+   Worth noting for its own sake: THE BUG DID NOT EXIST UNTIL POSITIONS DID.
+   A design that is harmless under one representation can be wrong under the
+   next, and nothing in the stage-17 tests could have caught it.
+
+2. TWO OF MY OWN TESTS ASSERTED GUESSED RANKINGS.
+   For "crawler robots" over a 2-term and a 4-term document, I expected the
+   longer one to win because it contains `crawler` twice. It scores higher on
+   that term and still loses: saturation caps the second mention, length
+   normalisation keeps discounting. BM25 behaving exactly as designed, and I
+   had written the test as though it were a counter.
+   Rewritten to assert properties rather than orderings, and the behaviour I
+   got wrong became its own test.
+
+3. THE PHRASE DEMO IN THE BENCHMARK PROVED NOTHING.
+   Loose "duplicate detection" and the quoted phrase both matched 153
+   documents, because in that corpus those words are only ever adjacent. A
+   comparison where both sides agree by construction is not a comparison.
+   Replaced with three rows: either-word (474), adjacent (153), reversed (0).
+
+4. I HAD WRITTEN "ROUGHLY TRIPLES" BEFORE MEASURING.
+   Received wisdom, in a docstring, presented as fact. Measured: 1.6x on this
+   corpus, and the reason is that its documents rarely repeat a term. Both the
+   number and the caveat now come from the benchmark.
+
+
+MEASURED
+--------
+  11,934,520 bytes   counts only     (stage 17)
+  19,173,825 bytes   with positions  (stage 18)   1.6x
+  1.38 positions per posting on this corpus
+
+  crawler simhash            167us    474 docs   either word, anywhere
+  "duplicate detection"      140us    153 docs   adjacent, in order
+  "detection duplicate"       47us      0 docs   reversed — and faster
+
+
+HOW TO VERIFY
+-------------
+  uv run pytest tests/test_stage18_phrases.py -q     # 24 tests
+  uv run python scripts/search_bench.py
+
+  uv run minicrawl-search --build pages.jsonl --index idx.json
+  uv run minicrawl-search --index idx.json '"the url you asked"'
+  uv run minicrawl-search --index idx.json '"you asked the url"'   # nothing
+
+
+STATE AFTER THIS STAGE
+----------------------
+- Quoted phrases work, ordered and adjacent, filtered before scoring.
+- The index knows what it cost, and says so.
+- Still absent: proximity/slop operators, skip pointers, delta-encoded
+  positions (where most of the 1.6x would go back), and stemming.

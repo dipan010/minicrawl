@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Seventeen stages, seventeen tags, 323 tests. Each stage is a git tag, a rationale note in
+Eighteen stages, eighteen tags, 347 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 
@@ -43,6 +43,7 @@ against the ground-truth manifest.
 | 15 ✅ | `export.py`, `report.html` | Getting the crawl out: JSONL text, a self-contained report, bundles |
 | 16 ✅ | `reader.py`, `markdown.py` | Reader mode: one URL in, Markdown out, and why a read beats a crawl |
 | 17 ✅ | `index.py`, `tokenize.py` | The inverted index: BM25, and why search is microseconds |
+| 18 ✅ | `index.py` positions | Phrase queries: adjacency, field gaps, and what positions cost |
 
 ## Design
 
@@ -207,6 +208,7 @@ both, and reports the robots.txt cost separately rather than hiding it.
 uv run minicrawl http://127.0.0.1:8081/ --quiet --export pages.jsonl
 uv run minicrawl-search --build pages.jsonl --index idx.json
 uv run minicrawl-search --index idx.json --explain "robots exclusion"
+uv run minicrawl-search --index idx.json '"the url you asked"'   # exact phrase
 ```
 
 Search is fast for one reason: **the crawling already happened.** Query time is

@@ -39,16 +39,31 @@ BM25 is what everybody actually uses, and it is three ideas:
 
 Written out rather than imported. It is fifteen lines, and the point of this
 project is to know why the tenth mention does not count.
+
+POSITIONS (stage 18)
+
+A posting stores WHERE each term occurs, not just how often. That is the only
+way to answer a phrase query: "web crawler" must mean the two words adjacent
+and in that order, not a document that mentions the web in paragraph one and a
+crawler in paragraph nine. Term frequency is then just `len(positions)`, so
+nothing is duplicated.
+
+It costs, and the cost is worth measuring rather than repeating. The received
+wisdom is that positions roughly triple an index; on this project's benchmark
+corpus it is 1.6x, because most terms occur once in a document there and a
+one-element list is barely larger than a count. Real prose repeats its words
+more within a document, so the true figure sits between the two. The benchmark
+prints what it actually measured, and says which corpus it measured it on.
 """
 from __future__ import annotations
 
 import json
 import math
-import struct
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .tokenize import counted, tokens
+from .tokenize import tokens
 
 # The defaults every implementation ships with, and they are not arbitrary:
 # k1=1.2 makes term frequency saturate quickly, b=0.75 applies most but not all
@@ -56,6 +71,37 @@ from .tokenize import counted, tokens
 # project does not have — so they are left alone and said to be left alone.
 K1 = 1.2
 B = 0.75
+
+# Positional distance inserted between fields. Any value larger than the
+# longest phrase anyone will search for works; 1000 is far beyond that.
+FIELD_GAP = 1000
+
+
+@dataclass(slots=True)
+class Query:
+    terms: list[str] = field(default_factory=list)
+    phrases: list[list[str]] = field(default_factory=list)
+
+
+_QUOTED = re.compile(r'"([^"]*)"')
+
+
+def parse_query(query: str) -> Query:
+    """Split a query into loose terms and quoted phrases.
+
+    An unterminated quote is treated as loose text rather than an error: a
+    person who typed one wants results, not a syntax lecture.
+    """
+    phrases, rest = [], _QUOTED.sub(" ", query)
+    for quoted in _QUOTED.findall(query):
+        group = tokens(quoted)
+        if len(group) == 1:
+            # A "quoted" single word is just that word. Treating it as a
+            # one-term phrase would work but adds a filter pass for nothing.
+            rest += " " + quoted
+        elif group:
+            phrases.append(group)
+    return Query(terms=tokens(rest), phrases=phrases)
 
 
 @dataclass(slots=True)
@@ -85,8 +131,9 @@ class Index:
     def __init__(self, k1: float = K1, b: float = B):
         self.k1 = k1
         self.b = b
-        # term -> {doc_id: term frequency}
-        self.postings: dict[str, dict[int, int]] = {}
+        # term -> {doc_id: [positions]}. Term frequency is len(positions),
+        # so the count is never stored twice and cannot disagree with itself.
+        self.postings: dict[str, dict[int, list[int]]] = {}
         self.docs: list[dict] = []            # metadata, indexed by doc_id
         self.lengths: list[int] = []          # in terms, indexed by doc_id
         self.total_length = 0
@@ -96,20 +143,41 @@ class Index:
             **meta) -> int:
         """Index one document. Returns its id."""
         doc_id = len(self.docs)
+
         # The title is worth indexing, and worth indexing TWICE: a page whose
         # title is "Web crawler" is more about crawlers than one that mentions
         # the phrase once in its footer. This is the poor relation of proper
         # field weighting (BM25F), and calling it that is more honest than
         # pretending a single flat field is a considered choice.
-        frequencies = counted(f"{title} {title} {text}" if title else text)
-        length = sum(frequencies.values())
+        title_terms = tokens(title)
+        body_terms = tokens(text)
 
-        for term, count in frequencies.items():
-            self.postings.setdefault(term, {})[doc_id] = count
+        # A GAP between the fields, so no phrase can straddle a boundary. A
+        # title ending "...Crawler" followed by a body starting "Politeness..."
+        # would otherwise match the phrase "crawler politeness", which appears
+        # nowhere in the document.
+        #
+        # The two title copies are separate fields for the same reason. Laid
+        # end to end, a title of "Web Crawler" becomes web crawler web crawler
+        # and invents the phrase "crawler web". Weighting a field must not
+        # change which phrases the document contains.
+        positions: dict[str, list[int]] = {}
+        at = 0
+        for group in (title_terms, title_terms, body_terms):
+            for term in group:
+                positions.setdefault(term, []).append(at)
+                at += 1
+            at += FIELD_GAP
 
+        for term, where in positions.items():
+            self.postings.setdefault(term, {})[doc_id] = where
+
+        # Length is a term count, not the padded position span: the gap is a
+        # positional device and must not make documents look longer than they
+        # are, which would skew every BM25 score.
         self.docs.append({"url": url, "title": title, **meta})
-        self.lengths.append(length)
-        self.total_length += length
+        self.lengths.append(2 * len(title_terms) + len(body_terms))
+        self.total_length += self.lengths[-1]
         return doc_id
 
     def add_jsonl(self, path: str | Path, *, text_field: str = "text") -> int:
@@ -137,6 +205,13 @@ class Index:
     def avg_length(self) -> float:
         return self.total_length / self.n_docs if self.n_docs else 0.0
 
+    def doc_frequency(self, term: str) -> int:
+        return len(self.postings.get(term, ()))
+
+    def term_frequency(self, term: str, doc_id: int) -> int:
+        """How often a term occurs in a document — derived, never stored."""
+        return len(self.postings.get(term, {}).get(doc_id, ()))
+
     def idf(self, term: str) -> float:
         """Inverse document frequency, the BM25+ variant.
 
@@ -146,17 +221,63 @@ class Index:
         for. The +1 inside the log removes that without changing the ordering
         of anything else, and every serious implementation applies it.
         """
-        n = len(self.postings.get(term, ()))
+        n = self.doc_frequency(term)
         if n == 0:
             return 0.0
         return math.log(1 + (self.n_docs - n + 0.5) / (n + 0.5))
 
+    # -- phrases -----------------------------------------------------------
+    def phrase_docs(self, phrase_terms: list[str]) -> set[int]:
+        """Documents containing these terms adjacent and in order.
+
+        The classic positional intersection: start with the documents holding
+        the first term, then for each subsequent term keep only positions that
+        continue the run. A document survives only if some starting position
+        reaches the end of the phrase.
+        """
+        if not phrase_terms:
+            return set()
+        first = self.postings.get(phrase_terms[0])
+        if not first:
+            return set()
+        if len(phrase_terms) == 1:
+            return set(first)
+
+        matched = set()
+        for doc_id, starts in first.items():
+            running = set(starts)
+            for offset, term in enumerate(phrase_terms[1:], start=1):
+                where = self.postings.get(term, {}).get(doc_id)
+                if not where:
+                    running = set()
+                    break
+                ahead = set(where)
+                # Keep only the starts whose (start + offset) is present.
+                running = {s for s in running if s + offset in ahead}
+                if not running:
+                    break
+            if running:
+                matched.add(doc_id)
+        return matched
+
     # -- querying ----------------------------------------------------------
     def search(self, query: str, limit: int = 10) -> list[Hit]:
         """Rank documents for a query. This is the whole online system."""
-        terms = tokens(query)
+        parsed = parse_query(query)
+        terms = [t for group in parsed.phrases for t in group] + parsed.terms
         if not terms or not self.n_docs:
             return []
+
+        # A quoted phrase is a FILTER, which is what quotes mean to a person:
+        # show me documents containing exactly this. Its words still score
+        # normally, so a document matching the phrase twice outranks one
+        # matching it once.
+        allowed: set[int] | None = None
+        for group in parsed.phrases:
+            found = self.phrase_docs(group)
+            allowed = found if allowed is None else (allowed & found)
+            if not allowed:
+                return []
 
         avg = self.avg_length or 1.0
         scores: dict[int, float] = {}
@@ -170,7 +291,10 @@ class Index:
             if not postings:
                 continue
             idf = self.idf(term)
-            for doc_id, frequency in postings.items():
+            for doc_id, where in postings.items():
+                if allowed is not None and doc_id not in allowed:
+                    continue
+                frequency = len(where)
                 length_ratio = self.lengths[doc_id] / avg
                 # Saturation and length normalisation, in one line each.
                 denominator = frequency + self.k1 * (1 - self.b + self.b * length_ratio)
@@ -199,7 +323,7 @@ class Index:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 1, "k1": self.k1, "b": self.b,
+            "version": 2, "k1": self.k1, "b": self.b,
             "docs": self.docs, "lengths": self.lengths,
             "postings": {term: list(postings.items())
                          for term, postings in self.postings.items()},
@@ -210,15 +334,26 @@ class Index:
     @classmethod
     def load(cls, path: str | Path) -> "Index":
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        version = payload.get("version", 1)
+        if version != 2:
+            # A version-1 index stored counts, not positions. Loading it would
+            # produce an index that answers term queries correctly and every
+            # phrase query wrongly — the worst kind of compatibility, so it is
+            # refused instead.
+            raise ValueError(
+                f"index format v{version} has no positions and cannot answer "
+                "phrase queries; rebuild it with --build")
         index = cls(k1=payload["k1"], b=payload["b"])
         index.docs = payload["docs"]
         index.lengths = payload["lengths"]
         index.total_length = sum(index.lengths)
-        index.postings = {term: {int(d): int(f) for d, f in postings}
+        index.postings = {term: {int(d): list(where) for d, where in postings}
                           for term, postings in payload["postings"].items()}
         return index
 
     def stats(self) -> dict:
         return {"documents": self.n_docs, "terms": len(self.postings),
                 "postings": sum(len(p) for p in self.postings.values()),
+                "positions": sum(len(where) for postings in self.postings.values()
+                                 for where in postings.values()),
                 "avg_length": round(self.avg_length, 1)}

@@ -42,6 +42,7 @@ THE STAGES
   15  getting the crawl out                  JSONL, self-contained report, bundles
   16  reader mode                            Markdown, and why a read beats a crawl
   17  the inverted index                     BM25, postings, and why search is fast
+  18  positions and phrases                  adjacency, field gaps, measured cost
 
 Where the WHAT BROKE sections are worth reading on their own: 05 (a
 normalisation rule that invented 404s), 06 (a degenerate corpus that broke
@@ -52,5 +53,6 @@ search that lost one key in two hundred while every spot check passed), and 13
 (twelve stages of mojibake, hidden because link extraction never noticed), and
 14 (a container that would not start, because an optional dependency had been
 mandatory for five stages and every dev machine had it installed), 16 (a
-converter that dropped every link and emphasis while looking perfect), and 17
-(a benchmark corpus that disproved the conclusion written above it).
+converter that dropped every link and emphasis while looking perfect), 17
+(a benchmark corpus that disproved the conclusion written above it), and 18 (a
+title-weighting trick that invented a phrase once positions existed).

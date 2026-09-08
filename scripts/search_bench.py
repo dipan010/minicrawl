@@ -190,6 +190,51 @@ def main() -> int:
         print(f"  {query!r:<34} {result['p50']:>8.0f}µs   "
               f"{matched:>9,} postings touched   {len(hits)} shown")
 
+    # --- what positions cost ------------------------------------------
+    print("\n  what positions cost, and what they buy\n")
+    import json as _json
+    import tempfile
+    corpus_small = make_corpus(10_000)
+    index = Index()
+    for i, text in enumerate(corpus_small):
+        index.add(text, url=f"http://example.test/{i}", title=f"Document {i}")
+    stats = index.stats()
+    with tempfile.TemporaryDirectory() as tmp:
+        full = Path(tmp) / "positions.json"
+        index.save(full)
+        # The same index with counts instead of position lists — what stage 17
+        # stored — written out so the size difference is measured rather than
+        # quoted from folklore.
+        counts_only = {
+            "version": 1, "k1": index.k1, "b": index.b,
+            "docs": index.docs, "lengths": index.lengths,
+            "postings": {term: [(d, len(w)) for d, w in postings.items()]
+                         for term, postings in index.postings.items()},
+        }
+        counts = Path(tmp) / "counts.json"
+        counts.write_text(_json.dumps(counts_only), encoding="utf-8")
+        with_pos, without = full.stat().st_size, counts.stat().st_size
+
+    print(f"  {stats['positions']:>12,} positions over {stats['postings']:,} postings "
+          f"({stats['positions'] / stats['postings']:.2f} per posting — this corpus")
+    print("               repeats words within a document less than prose does,")
+    print("               so this understates the cost on real text)")
+    print(f"  {without:>12,} bytes  counts only      (stage 17)")
+    print(f"  {with_pos:>12,} bytes  with positions   (stage 18)  "
+          f"{with_pos / without:.1f}x")
+
+    # Three queries over the same two-or-three words. The first matches any
+    # document containing any of them; the second demands adjacency; the third
+    # demands an adjacency that never occurs, because the words come from
+    # different sentences.
+    cases = [("crawler simhash", "either word, anywhere"),
+             ('"duplicate detection"', "adjacent, in order"),
+             ('"detection duplicate"', "the same words, reversed")]
+    for query, note in cases:
+        result = timed(lambda q=query: index.search(q), repeats=30)
+        n = len(index.search(query, limit=100_000))
+        print(f"  {query:<26} {result['p50']:>8.0f}µs   {n:>6,} docs   {note}")
+
     print("\n  Cost tracks the length of the postings lists touched — that is,")
     print("  how rare the query's words are. A term in almost every document")
     print("  costs almost what a scan costs, which is the honest caveat: an")
