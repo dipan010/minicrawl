@@ -120,11 +120,12 @@ flowchart TB
   CORE{{"minicrawl core<br/><i>httpx + selectolax, nothing else</i>"}}:::core
 
   CLI["<b>CLI</b><br/>uv run minicrawl<br/><i>every flag, incl. --ignore-robots</i>"]:::v
+  READ["<b>Reader</b><br/>minicrawl-read · GET /read<br/><i>no frontier, no queue, one round trip</i>"]:::v
   WEB["<b>Local web UI</b><br/>python -m minicrawl.web<br/><i>SSE, LOCAL policy</i>"]:::v
   DOCK["<b>Container</b><br/>Dockerfile / render.yaml<br/><i>PUBLIC policy: allowlist, SSRF guard</i>"]:::v
   PAGES["<b>GitHub Pages</b><br/>static files<br/><i>replays recorded crawls</i>"]:::v
 
-  CORE --> CLI & WEB & DOCK
+  CORE --> CLI & READ & WEB & DOCK
   CORE -.->|"recorded ahead of time<br/>by scripts/record_crawls.py"| PAGES
 
   CLI --- N1["a human owns<br/>the consequences"]:::n
@@ -135,6 +136,13 @@ flowchart TB
   classDef v fill:#2f4858,stroke:#1d2d38,color:#fff
   classDef n fill:#efece4,stroke:#c9c5ba,color:#1a1a17,font-size:11px
 ```
+
+Reader mode is the odd one out: it uses the same fetcher and parser but
+**none** of the scheduling. Told exactly what to fetch, it needs no frontier
+and never queues per host, so it costs one round trip where a crawl of the
+same pages costs the politeness interval between each. Eight real pages read
+in 1.88s against 8.10s crawled — measured in `scripts/reader_bench.py`, and
+the gap is politeness rather than optimisation.
 
 The asymmetry is deliberate and is the subject of stage 14: **limits belong to
 exposure, not to the crawler.** The CLI keeps `--ignore-robots` and can crawl

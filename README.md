@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Fifteen stages, fifteen tags, 268 tests. Each stage is a git tag, a rationale note in
+Sixteen stages, sixteen tags, 296 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 
@@ -41,6 +41,7 @@ against the ground-truth manifest.
 | 13 ✅ | `web/`, `charset.py` | A browser front end, and the real web finding a twelve-stage bug |
 | 14 ✅ | `web/policy.py`, `Dockerfile` | Exposing it publicly: SSRF, rate limits, fail-safe defaults |
 | 15 ✅ | `export.py`, `report.html` | Getting the crawl out: JSONL text, a self-contained report, bundles |
+| 16 ✅ | `reader.py`, `markdown.py` | Reader mode: one URL in, Markdown out, and why a read beats a crawl |
 
 ## Design
 
@@ -185,6 +186,20 @@ uv run minicrawl-web                   # opens http://127.0.0.1:8000/
 Type a URL — the local corpus, or any real site — and the pages stream in as
 they are fetched.
 
+### Read a single page
+
+```bash
+uv run minicrawl-read https://example.com/            # Markdown on stdout
+uv run minicrawl-read --json url1 url2 > pages.jsonl  # for a pipeline
+```
+
+The shape an LLM agent calls: fetch, strip the furniture, return Markdown with
+its structure intact. **Eight real pages in 1.88s**, robots obeyed — against
+8.10s to crawl the same number. The gap is politeness, not optimisation: a
+crawl visits one host repeatedly and must wait between requests; a read is
+handed a list and never queues per host. `scripts/reader_bench.py` measures
+both, and reports the robots.txt cost separately rather than hiding it.
+
 ### Or host it
 
 ```bash
@@ -282,6 +297,8 @@ minicrawl/            the crawler
   warc.py             WARC 1.1 archives, one gzip member per record
   charset.py          BOM, header, meta, then the fallback that cannot fail
   export.py           JSONL of clean text, and a report you can carry away
+  reader.py           one URL in, Markdown out — no frontier, no queue
+  markdown.py         HTML to Markdown, structure kept, links absolutised
   report.html         the report template — system fonts, no network
   cdx.py              SURT keys, sorted CDXJ, binary search over the file
   replay.py           seek to a record, re-extract with no network

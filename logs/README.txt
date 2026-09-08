@@ -40,6 +40,7 @@ THE STAGES
   13  front end, and the real web            SSE, CORS, character encodings
   14  exposing it safely                     SSRF, rate limits, fail-safe defaults
   15  getting the crawl out                  JSONL, self-contained report, bundles
+  16  reader mode                            Markdown, and why a read beats a crawl
 
 Where the WHAT BROKE sections are worth reading on their own: 05 (a
 normalisation rule that invented 404s), 06 (a degenerate corpus that broke
@@ -49,4 +50,5 @@ GET blinding the crawl), 10 (two framework hooks that failed in total silence),
 search that lost one key in two hundred while every spot check passed), and 13
 (twelve stages of mojibake, hidden because link extraction never noticed), and
 14 (a container that would not start, because an optional dependency had been
-mandatory for five stages and every dev machine had it installed).
+mandatory for five stages and every dev machine had it installed), and 16 (a
+converter that dropped every link and emphasis while looking perfect).

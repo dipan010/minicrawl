@@ -1,0 +1,109 @@
+STAGE 16 — READER MODE
+======================
+
+GOAL
+----
+One URL in, clean Markdown out — the shape an LLM agent actually calls. And a
+measurement showing why it is fast, which is not "because it was optimised".
+
+
+STEPS TAKEN
+-----------
+1. Wrote minicrawl/markdown.py: a recursive HTML -> Markdown walk. No new
+   dependency.
+2. Wrote minicrawl/reader.py: read_one / read_many / RobotsGate.
+3. minicrawl-read CLI (Markdown or JSONL, stdin or argv).
+4. GET /read on the web server.
+5. scripts/reader_bench.py — read vs crawl over the same pages, cold and warm.
+6. 28 tests.
+
+
+CONCEPTS APPLIED
+----------------
+- Read vs crawl: discovery needs a frontier and politeness; a read is told
+  what to fetch and pays one round trip. The gap is politeness by construction.
+- Structure as information: a model reads shape, so headings/lists/code must
+  survive. main_text (flat) is the wrong output here.
+- Absolute links in extracted content: a relative href looks usable and is not.
+- Inline allowlist, not block allowlist: block containers are open-ended.
+- Per-host robots cache under a lock: N concurrent reads, one robots fetch.
+- Semaphore concurrency (global) vs per-host queues (crawl) — different jobs.
+- Honest benchmarking: report the robots cost separately instead of quoting
+  whichever number flatters the result.
+
+
+CONCEPT -> CODE MAP
+-------------------
+HTML -> Markdown              minicrawl/markdown.py :: to_markdown()
+one inline node, own tag      minicrawl/markdown.py :: _inline_node()
+containers by default         minicrawl/markdown.py :: INLINE set
+picking the document          minicrawl/markdown.py :: main_node()
+tables with separator row     minicrawl/markdown.py :: _table()
+nested list indentation       minicrawl/markdown.py :: _list_item()
+one read                      minicrawl/reader.py :: read_one()
+many reads, ordered           minicrawl/reader.py :: read_many()
+robots once per host          minicrawl/reader.py :: RobotsGate
+command line                  minicrawl/read_cli.py
+endpoint                      minicrawl/web/server.py :: _read()
+the measurement               scripts/reader_bench.py
+
+
+WHAT BROKE
+----------
+1. THE CONVERTER FLATTENED WHOLE DOCUMENTS.
+   The first version listed BLOCK tags and treated everything else as inline.
+   <article> was not on the list, so an entire page collapsed into one
+   paragraph. Inverted to an INLINE allowlist: unknown tag means container.
+   Block-level elements are open-ended; inline ones are a closed set.
+
+2. EMPHASIS AND LINKS VANISHED WITH NO VISIBLE DAMAGE.
+   _inline(node) formatted a node's CHILDREN. Called on a <strong> directly —
+   which is what a block walker does — it emitted the text with no ** markers.
+   The output looked perfect: all words present, correctly ordered. Only the
+   emphasis, links and inline code were gone, which is precisely the structure
+   the stage exists to preserve.
+   Fixed with _inline_node (formats one node including its own tag). There is
+   now a test per inline element, because prose looks fine either way.
+
+3. /read DID NOT OBEY ROBOTS.TXT.
+   read_one defaults robots=None — correct for a library call the caller
+   controls. The endpoint forgot to pass a gate and served a disallowed page
+   with a 200. No error, no warning: a rule simply not applied, contradicting
+   stage 14's central promise.
+   The failure was the ABSENCE of an argument, which is the shape this project
+   keeps finding. Pinned by a test asserting 502 and the reason.
+
+4. THE REAL-SITE BENCHMARK COMPARED 8 READS AGAINST A 1-PAGE CRAWL.
+   The crawl seeded from example.com, which has one page. Not a comparison.
+   Seeded from a site with links instead.
+
+
+MEASURED
+--------
+  local corpus, 15 URLs      read 0.06s wall  |  crawl 3.62s wall
+  real sites,   8 URLs       read 1.88s wall  |  crawl 8.10s wall
+  robots check costs ~0.5s across 8 real URLs, amortised per host.
+  The crawls spent 22.1 and 34.4 worker-seconds waiting. That is the gap.
+
+
+HOW TO VERIFY
+-------------
+  uv run pytest tests/test_stage16_reader.py -q      # 28 tests
+
+  uv run minicrawl-read https://example.com/
+  uv run minicrawl-read --json url1 url2 > pages.jsonl
+  cat urls.txt | uv run minicrawl-read --json --concurrency 20 > pages.jsonl
+
+  uv run python scripts/reader_bench.py             # corpus
+  uv run python scripts/reader_bench.py --real      # real sites
+
+  uv run minicrawl-web &
+  curl "localhost:8000/read?url=https://example.com/" | python3 -m json.tool
+
+
+STATE AFTER THIS STAGE
+----------------------
+- A read of 8 real pages returns in under 2 seconds, robots obeyed.
+- The output is Markdown with structure intact — model-ready.
+- Still absent: HTTP/2, a read cache (freshness.py already knows how),
+  per-host concurrency limits in read_many, and rendering for JS-only pages.

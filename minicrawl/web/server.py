@@ -43,6 +43,8 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from ..crawler import CrawlConfig, Page, crawl
 from ..dedup import DuplicateIndex
+from ..reader import RobotsGate, read_one
+from ..fetch import make_client
 from ..traps import TrapGuard
 from .policy import LOCAL, Policy, from_env
 
@@ -207,6 +209,8 @@ async def _handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
             # two hard-coded variants of itself.
             writer.write(_response("200 OK", "application/json",
                                    json.dumps(policy.describe()).encode()))
+        elif path == "/read":
+            await _read(writer, parse_qs(query), policy, client_of(writer, headers))
         elif path == "/healthz":
             writer.write(_response("200 OK", "text/plain", b"ok"))
         elif path == "/crawl":
@@ -228,6 +232,31 @@ async def _send(writer: asyncio.StreamWriter, event: str, data: dict) -> None:
     payload = json.dumps(data)
     writer.write(f"event: {event}\ndata: {payload}\n\n".encode())
     await writer.drain()
+
+
+async def _read(writer: asyncio.StreamWriter, params: dict,
+                policy: Policy, client: str) -> None:
+    """GET /read?url=... — one page as Markdown, in one round trip.
+
+    The same policy governs it as a crawl: a hosted instance must not fetch
+    its own network just because the endpoint is smaller.
+    """
+    seed = unquote((params.get("url") or [""])[0]).strip()
+    refusal = policy.check_seed(seed)
+    if refusal:
+        body = json.dumps({"url": seed, "error": refusal}).encode()
+        writer.write(_response("400 Bad Request", "application/json", body))
+        return
+    async with make_client(timeout=15.0) as http:
+        # A RobotsGate is not optional here. `read_one` defaults it to None,
+        # which is right for a library call the caller controls and wrong for
+        # an endpoint on a public host: stage 14's promise is that robots is
+        # always obeyed and cannot be switched off from a form, and a smaller
+        # endpoint does not get an exemption from it.
+        result = await read_one(http, seed, robots=RobotsGate(http))
+    body = json.dumps(result.to_dict(), ensure_ascii=False).encode()
+    status = "200 OK" if result.ok else "502 Bad Gateway"
+    writer.write(_response(status, "application/json; charset=utf-8", body))
 
 
 def client_of(writer: asyncio.StreamWriter, headers: dict) -> str:
