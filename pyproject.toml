@@ -26,6 +26,7 @@ scrapy = [
 minicrawl = "minicrawl.cli:main"
 minicrawl-web = "minicrawl.web.__main__:main"
 minicrawl-read = "minicrawl.read_cli:main"
+minicrawl-search = "minicrawl.search_cli:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -275,6 +275,11 @@ flowchart TB
     warc["warc.py"]:::p
     cdx["cdx.py"]:::p
     replay["replay.py"]:::p
+    export["export.py"]:::p
+  end
+  subgraph L7["Search — the online half"]
+    tokenize["tokenize.py<br/><i>what becomes findable</i>"]:::m
+    index["index.py<br/><i>postings · BM25</i>"]:::o
   end
 
   cli & web --> crawler
@@ -284,9 +289,11 @@ flowchart TB
   extract --> charset
   extract --> normalize --> traps
   extract --> dedup
-  crawler --> store & warc
+  crawler --> store & warc & export
   warc --> cdx --> replay
   replay --> extract
+  export -->|"JSONL of clean text"| index
+  index --> tokenize
 
   classDef e fill:#b07a16,stroke:#7d5610,color:#fff
   classDef o fill:#1f5e4b,stroke:#123c30,color:#fff

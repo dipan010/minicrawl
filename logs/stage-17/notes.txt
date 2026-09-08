@@ -1,0 +1,118 @@
+STAGE 17 — THE INVERTED INDEX AND BM25
+======================================
+
+GOAL
+----
+Answer the question the project has been circling: why is search lightning
+fast? Not because the crawler is quick. Because the crawling already happened,
+and query time is a lookup in a structure built offline.
+
+Build that structure, score with BM25, and MEASURE it against the obvious
+alternative so the answer is a number rather than an assertion.
+
+
+STEPS TAKEN
+-----------
+1. minicrawl/tokenize.py — case-folding, NFKC, Unicode-aware splitting.
+2. minicrawl/index.py — postings, BM25, save/load, add_jsonl.
+3. minicrawl-search CLI: --build from a stage-15 export, then query.
+4. scripts/search_bench.py — inverted index vs forward scan, same scoring,
+   three corpus sizes, plus a selectivity breakdown.
+5. Rebuilt the benchmark corpus after the first one made the result
+   meaningless (see WHAT BROKE).
+6. 27 tests.
+
+
+CONCEPTS APPLIED
+----------------
+- Inverted index: term -> documents, so a query reads only the postings of its
+  own terms and never looks at the rest of the corpus.
+- Query cost tracks postings length, i.e. term rarity — not corpus size.
+- BM25: saturation (k1), IDF, length normalisation (b).
+- The +1 IDF variant: the classic formula goes negative for terms in >50% of
+  documents, letting a document rank LOWER for containing a query word.
+- Why no stopword list: BM25 already discounts them, and removing them breaks
+  phrase queries.
+- Tokenisation decides findability: a discarded term is unmatchable forever.
+- NFKC: ligatures and compatibility forms must fold to what people type.
+- Zipf's law is why inverted indexes work; a corpus without it tests nothing.
+- Structural equivalence: a faster structure must return identical answers.
+
+
+CONCEPT -> CODE MAP
+-------------------
+tokenisation                  minicrawl/tokenize.py :: tokens()
+unicode normalisation         minicrawl/tokenize.py :: normalize()
+term frequencies              minicrawl/tokenize.py :: counted()
+postings                      minicrawl/index.py :: Index.postings
+BM25 saturation + length      minicrawl/index.py :: Index.search()
+non-negative IDF              minicrawl/index.py :: Index.idf()
+title weighting (poor BM25F)  minicrawl/index.py :: Index.add()
+the stage-15 seam             minicrawl/index.py :: Index.add_jsonl()
+score decomposition           minicrawl/index.py :: Hit.explain()
+snapshot persistence          minicrawl/index.py :: Index.save()/load()
+command line                  minicrawl/search_cli.py
+the measurement               scripts/search_bench.py
+forward-scan baseline         scripts/search_bench.py :: ForwardScan
+
+
+WHAT BROKE
+----------
+1. THE BENCHMARK CORPUS MADE THE MEASUREMENT MEANINGLESS.
+   The first version built documents by resampling sixteen sentences. Every
+   term then appeared in about a third of all documents, so postings lists
+   were nearly as long as the corpus and traversing them cost roughly what
+   scanning everything cost. Measured speedup: 2x.
+
+   Worse, I had already written the summary line "cost tracks how rare the
+   words are, not how big the corpus is" — which the table directly
+   contradicted, since latency grew from 228us to 12,244us with corpus size.
+   I nearly shipped a conclusion my own numbers disproved.
+
+   Real text is Zipfian, and that distribution is the whole reason an inverted
+   index works. Rebuilt on a 20,000-word vocabulary sampled by rank:
+   speedup went 2x -> 61x at 50,000 documents, and the claim became true.
+
+   This is stage 6 for the fourth time: a degenerate corpus tolerating a wrong
+   conclusion. The rule holds — if the corpus tolerates it, the corpus is
+   wrong. The benchmark now states its own construction in its docstring,
+   because a synthetic corpus can be built to prove anything.
+
+2. THE HEADLINE WOULD HAVE BEEN A HALF-TRUTH ANYWAY.
+   Even with a good corpus, 61x is the best case. A term present in 49,990 of
+   50,000 documents costs 24,591us against a scan's 31,240us — no real gain,
+   because its postings list IS the corpus. Reported as its own row rather
+   than averaged away.
+
+
+MEASURED
+--------
+  documents   build    index p50   scan p50   speedup
+      1,000   0.03s        15us      216us       14x
+     10,000   0.36s        92us    3,011us       33x
+     50,000   2.00s       509us   31,240us       61x
+
+  selectivity, 50,000 documents:
+     36 postings         13us
+  2,289 postings        503us
+ 49,990 postings     24,591us   <- almost exactly the cost of a scan
+
+
+HOW TO VERIFY
+-------------
+  uv run pytest tests/test_stage17_index.py -q      # 27 tests
+  uv run python scripts/search_bench.py
+
+  uv run python -m testsite.server --ports 8081 &
+  uv run minicrawl http://127.0.0.1:8081/ --quiet --max-pages 40 \
+      --export pages.jsonl
+  uv run minicrawl-search --build pages.jsonl --index idx.json
+  uv run minicrawl-search --index idx.json --explain "café"
+
+
+STATE AFTER THIS STAGE
+----------------------
+- A crawl can be indexed and queried in microseconds.
+- The claim "search is fast" is now a table, with its caveat next to it.
+- Still absent: positions (so no phrase queries), stemming, a seekable on-disk
+  index, an HTTP search endpoint, and tuned k1/b (which needs judged data).

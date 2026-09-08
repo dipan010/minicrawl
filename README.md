@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Sixteen stages, sixteen tags, 296 tests. Each stage is a git tag, a rationale note in
+Seventeen stages, seventeen tags, 323 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 
@@ -42,6 +42,7 @@ against the ground-truth manifest.
 | 14 ✅ | `web/policy.py`, `Dockerfile` | Exposing it publicly: SSRF, rate limits, fail-safe defaults |
 | 15 ✅ | `export.py`, `report.html` | Getting the crawl out: JSONL text, a self-contained report, bundles |
 | 16 ✅ | `reader.py`, `markdown.py` | Reader mode: one URL in, Markdown out, and why a read beats a crawl |
+| 17 ✅ | `index.py`, `tokenize.py` | The inverted index: BM25, and why search is microseconds |
 
 ## Design
 
@@ -200,6 +201,25 @@ crawl visits one host repeatedly and must wait between requests; a read is
 handed a list and never queues per host. `scripts/reader_bench.py` measures
 both, and reports the robots.txt cost separately rather than hiding it.
 
+### Search what you crawled
+
+```bash
+uv run minicrawl http://127.0.0.1:8081/ --quiet --export pages.jsonl
+uv run minicrawl-search --build pages.jsonl --index idx.json
+uv run minicrawl-search --index idx.json --explain "robots exclusion"
+```
+
+Search is fast for one reason: **the crawling already happened.** Query time is
+a lookup in a structure built offline — 509µs over 50,000 documents, against
+31,240µs to score the same documents by scanning them. `scripts/search_bench.py`
+runs the same BM25 through both structures and asserts they rank identically,
+because a faster structure that gives different answers is not faster.
+
+The caveat is in the same table: a term present in 49,990 of 50,000 documents
+costs 24,591µs — almost exactly what the scan costs, because its postings list
+*is* the corpus. An inverted index is fast on selective queries, and `the` is
+not one.
+
 ### Or host it
 
 ```bash
@@ -298,6 +318,8 @@ minicrawl/            the crawler
   charset.py          BOM, header, meta, then the fallback that cannot fail
   export.py           JSONL of clean text, and a report you can carry away
   reader.py           one URL in, Markdown out — no frontier, no queue
+  index.py            inverted index and BM25 — the online half
+  tokenize.py         what becomes findable, and what silently does not
   markdown.py         HTML to Markdown, structure kept, links absolutised
   report.html         the report template — system fonts, no network
   cdx.py              SURT keys, sorted CDXJ, binary search over the file
