@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from minicrawl.cdx import CdxIndex, surt, write_cdxj          # noqa: E402
+from minicrawl.hybrid import HybridSearcher                    # noqa: E402
 from minicrawl.index import Index                             # noqa: E402
 from minicrawl.reader import read_many                        # noqa: E402
 from minicrawl.tokenize import tokens as tokenise             # noqa: E402
@@ -309,6 +310,87 @@ def search_numbers(sizes=(1_000, 10_000, 50_000)) -> dict:
             "phrases": phrase_rows}
 
 
+# --- stage 19: hybrid retrieval --------------------------------------------
+
+MORPHOLOGY = [("redirects", "redirect"), ("duplicate", "duplicates"),
+              ("normalisation", "normalise"), ("politeness", "polite"),
+              ("compressed", "compression"), ("generated", "generator")]
+
+SPURIOUS = ["spider", "crawlspace", "rediscover"]
+
+
+def hybrid_numbers(jsonl: Path) -> dict:
+    searcher = HybridSearcher.build(jsonl)
+
+    morphology, rescued, eligible = [], 0, 0
+    for indexed, query in MORPHOLOGY:
+        base = len(searcher.index.search(indexed, limit=10))
+        bm25 = len(searcher.index.search(query, limit=10))
+        ngram = len(searcher.ngrams.search(query, limit=10))
+        fused = len(searcher.search(query, limit=10))
+        # A rescue only counts when the indexed form really is in the corpus.
+        # Otherwise BM25 is correctly silent for both spellings and the
+        # n-grams are returning near-miss junk being scored as recall.
+        if base == 0:
+            verdict = "absent"
+        else:
+            eligible += 1
+            saved = bm25 == 0 and fused > 0
+            rescued += saved
+            verdict = "rescued" if saved else "no change"
+        morphology.append({"indexed": indexed, "query": query, "base": base,
+                           "bm25": bm25, "ngram": ngram, "fused": fused,
+                           "verdict": verdict})
+
+    spurious = [{"query": q,
+                 "hits": [{"title": h.title or h.url.rsplit("/", 1)[-1],
+                           "score": round(h.score, 2)}
+                          for h in searcher.ngrams.search(q, limit=3)]}
+                for q in SPURIOUS]
+
+    kept, checked = 0, 0
+    for query in [q for _, q in MORPHOLOGY] + ["café", "robots", "trap"]:
+        bm25 = [h.doc_id for h in searcher.index.search(query, limit=5)]
+        if not bm25:
+            continue
+        checked += 1
+        kept += bm25[0] in [h.doc_id for h in searcher.search(query, limit=5)]
+
+    query = "duplicate detection"
+    cost = {"bm25": _median_us(lambda: searcher.index.search(query)),
+            "ngram": _median_us(lambda: searcher.ngrams.search(query)),
+            "fused": _median_us(lambda: searcher.search(query))}
+
+    return {"documents": searcher.index.n_docs,
+            "terms": len(searcher.index.postings),
+            "grams": len(searcher.ngrams.postings),
+            "morphology": morphology, "spurious": spurious,
+            "rescued": rescued, "eligible": eligible,
+            "preserved": kept, "checked": checked, "cost": cost,
+            "examples": [
+                {"pair": "redirect / redirects",
+                 "cosine": round(_cos("redirect", "redirects"), 2)},
+                {"pair": "redirect / crawler",
+                 "cosine": round(_cos("redirect", "crawler"), 2)},
+                {"pair": "crawler / spider",
+                 "cosine": round(_cos("crawler", "spider"), 2)},
+            ]}
+
+
+def _median_us(fn, repeats: int = 20) -> int:
+    samples = []
+    for _ in range(repeats):
+        started = time.perf_counter()
+        fn()
+        samples.append(time.perf_counter() - started)
+    return round(sorted(samples)[len(samples) // 2] * 1e6)
+
+
+def _cos(a: str, b: str) -> float:
+    from minicrawl.vectors import cosine, vector
+    return cosine(vector(a), vector(b))
+
+
 GAP = "\u0000"
 
 
@@ -392,6 +474,8 @@ async def main() -> int:
         sys.stderr.write("search benchmark ...\n")
         data["search"] = search_numbers()
         data["phrase_demo"] = phrase_playground(tmp / "pages.jsonl")
+        sys.stderr.write("hybrid benchmark ...\n")
+        data["hybrid"] = hybrid_numbers(tmp / "pages.jsonl")
         for seed, pages, delay in [("https://quotes.toscrape.com/", 12, 1.0),
                                    ("https://example.com/", 5, 1.0),
                                    ("https://www.rfc-editor.org/rfc/rfc9309.html", 5, 1.5)]:

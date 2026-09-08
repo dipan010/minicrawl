@@ -1,6 +1,6 @@
 {
  "generated": "2026-09-09",
- "tests": 347,
+ "tests": 370,
  "corpus": {
   "pages": [
    {
@@ -39,7 +39,7 @@
     "words": 7,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.003,
+    "elapsed": 0.004,
     "error": null
    },
    {
@@ -78,7 +78,7 @@
     "words": 36,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.004,
+    "elapsed": 0.003,
     "error": null
    },
    {
@@ -104,7 +104,7 @@
     "words": 443,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.005,
+    "elapsed": 0.003,
     "error": null
    },
    {
@@ -117,7 +117,7 @@
     "words": 11,
     "verdict": "canonical_alias",
     "duplicate_of": "http://127.0.0.1:8081/a",
-    "elapsed": 0.004,
+    "elapsed": 0.005,
     "error": null
    },
    {
@@ -130,7 +130,7 @@
     "words": 47,
     "verdict": "already_seen",
     "duplicate_of": "http://127.0.0.1:8081/a",
-    "elapsed": 0.011,
+    "elapsed": 0.013,
     "error": null
    },
    {
@@ -143,7 +143,7 @@
     "words": 6,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.808,
+    "elapsed": 0.806,
     "error": null
    },
    {
@@ -156,7 +156,7 @@
     "words": 2,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.003,
+    "elapsed": 0.002,
     "error": null
    },
    {
@@ -169,7 +169,7 @@
     "words": 5,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.005,
+    "elapsed": 0.003,
     "error": null
    },
    {
@@ -182,7 +182,7 @@
     "words": 6,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.004,
+    "elapsed": 0.003,
     "error": null
    },
    {
@@ -195,7 +195,7 @@
     "words": 20,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.004,
+    "elapsed": 0.002,
     "error": null
    },
    {
@@ -208,7 +208,7 @@
     "words": 13,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.006,
+    "elapsed": 0.007,
     "error": null
    },
    {
@@ -221,7 +221,7 @@
     "words": 13,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.004,
+    "elapsed": 0.005,
     "error": null
    },
    {
@@ -247,7 +247,7 @@
     "words": 7,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.005,
+    "elapsed": 0.003,
     "error": null
    },
    {
@@ -260,7 +260,7 @@
     "words": 10607,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.005,
+    "elapsed": 0.003,
     "error": null
    },
    {
@@ -273,7 +273,7 @@
     "words": 8,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.005,
+    "elapsed": 0.003,
     "error": null
    },
    {
@@ -299,7 +299,7 @@
     "words": 3,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.004,
+    "elapsed": 0.003,
     "error": null
    },
    {
@@ -312,7 +312,7 @@
     "words": 3,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.004,
+    "elapsed": 0.005,
     "error": null
    },
    {
@@ -338,7 +338,7 @@
     "words": 47,
     "verdict": "exact_duplicate",
     "duplicate_of": "http://127.0.0.1:8081/a",
-    "elapsed": 0.004,
+    "elapsed": 0.003,
     "error": null
    },
    {
@@ -351,7 +351,7 @@
     "words": 47,
     "verdict": "already_seen",
     "duplicate_of": "http://127.0.0.1:8081/a",
-    "elapsed": 0.005,
+    "elapsed": 0.007,
     "error": null
    },
    {
@@ -364,7 +364,7 @@
     "words": 443,
     "verdict": "near_duplicate",
     "duplicate_of": "http://127.0.0.1:8081/dup/near-1",
-    "elapsed": 0.004,
+    "elapsed": 0.005,
     "error": null
    },
    {
@@ -405,7 +405,7 @@
     "words": 0,
     "verdict": "new",
     "duplicate_of": null,
-    "elapsed": 0.015,
+    "elapsed": 0.013,
     "error": "redirect_loop"
    }
   ],
@@ -493,43 +493,43 @@
   ],
   "archive": {
    "records": 31,
-   "bytes": 23673,
+   "bytes": 23687,
    "cdx_lines": 30,
    "lines": [
-    "127.0.0.1:8081)/ 20260908191809 {\"digest\": \"sha256:8e3102dcabde7b78c4e29e9af3bb1eb8efc01c3986b82958743f372467b60f97\", \"filename\": \"d.warc.gz\", \"length\": 811, \"mime\": \"text/html\", \"offset\": 311, \"status\": 200, \"url\": \"http://127.0.0.1:8081/\"}",
-    "127.0.0.1:8081)/a 20260908191809 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 710, \"mime\": \"text/html\", \"offset\": 1122, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}",
-    "127.0.0.1:8081)/a 20260908191811 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 710, \"mime\": \"text/html\", \"offset\": 7506, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}",
-    "127.0.0.1:8081)/a 20260908191815 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 712, \"mime\": \"text/html\", \"offset\": 18518, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}",
-    "127.0.0.1:8081)/a?a=1&b=2 20260908191815 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 721, \"mime\": \"text/html\", \"offset\": 17797, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a?a=1&b=2\"}",
-    "127.0.0.1:8081)/b 20260908191809 {\"digest\": \"sha256:8396a52adc96627e0724be8b9e3698fdfb9cefd77dafc391852f3a43567672f1\", \"filename\": \"d.warc.gz\", \"length\": 577, \"mime\": \"text/html\", \"offset\": 1832, \"status\": 200, \"url\": \"http://127.0.0.1:8081/b\"}",
-    "127.0.0.1:8081)/c 20260908191814 {\"digest\": \"sha256:91c87cc308bb6680844578f389ae5080d6231baa6b9b048d477a476dc5e7489d\", \"filename\": \"d.warc.gz\", \"length\": 571, \"mime\": \"text/html\", \"offset\": 15549, \"status\": 200, \"url\": \"http://127.0.0.1:8081/c\"}",
-    "127.0.0.1:8081)/compressed 20260908191813 {\"digest\": \"sha256:8af0ef851d90a7d1aabc983bd7c95ba8a4346611c696af0a9775c7e88dcddd7c\", \"filename\": \"d.warc.gz\", \"length\": 620, \"mime\": \"text/html\", \"offset\": 10579, \"status\": 200, \"url\": \"http://127.0.0.1:8081/compressed\"}",
-    "127.0.0.1:8081)/docs/ 20260908191810 {\"digest\": \"sha256:29cdbb3a407f96e221870c0ca3ef5e1f70ad08340542a8fe4ef4a74a154c9167\", \"filename\": \"d.warc.gz\", \"length\": 619, \"mime\": \"text/html\", \"offset\": 2409, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/\"}",
-    "127.0.0.1:8081)/docs/one 20260908191815 {\"digest\": \"sha256:441211b1135f8280505b524c1668a42a0f80e4e8f12502af2d6b2d34f301015e\", \"filename\": \"d.warc.gz\", \"length\": 558, \"mime\": \"text/html\", \"offset\": 16120, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/one\"}",
-    "127.0.0.1:8081)/docs/sub/three 20260908191815 {\"digest\": \"sha256:bb69f9e44c610c3e7d5eefd8f3e5cb3eda4267131ad59c1eabb1aa8334815e0c\", \"filename\": \"d.warc.gz\", \"length\": 556, \"mime\": \"text/html\", \"offset\": 17241, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/sub/three\"}",
-    "127.0.0.1:8081)/docs/two 20260908191815 {\"digest\": \"sha256:bdc119e5b4453e141d8ad15c2d63694e5d2db2e07a0bb372cc15bc158867230b\", \"filename\": \"d.warc.gz\", \"length\": 563, \"mime\": \"text/html\", \"offset\": 16678, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/two\"}",
-    "127.0.0.1:8081)/dup/canonical-source 20260908191811 {\"digest\": \"sha256:424390dc5f7c74cf564b521ec3b7261e00df0baa700a4cbfbbf9f538b8ed0c89\", \"filename\": \"d.warc.gz\", \"length\": 614, \"mime\": \"text/html\", \"offset\": 6892, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/canonical-source\"}",
-    "127.0.0.1:8081)/dup/exact-1 20260908191810 {\"digest\": \"sha256:8d3ade3ecc2863d2d3fa92bc52d723bd7fd436313bdb8a78bcb60c95522be198\", \"filename\": \"d.warc.gz\", \"length\": 679, \"mime\": \"text/html\", \"offset\": 3760, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/exact-1\"}",
-    "127.0.0.1:8081)/dup/exact-2 20260908191810 {\"digest\": \"sha256:8d3ade3ecc2863d2d3fa92bc52d723bd7fd436313bdb8a78bcb60c95522be198\", \"filename\": \"d.warc.gz\", \"length\": 677, \"mime\": \"text/html\", \"offset\": 4439, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/exact-2\"}",
-    "127.0.0.1:8081)/dup/near-1 20260908191810 {\"digest\": \"sha256:9b5920352780f762c84a41bd9de463ea4b5ef6176d7c37b13acc4395e2143b9c\", \"filename\": \"d.warc.gz\", \"length\": 1776, \"mime\": \"text/html\", \"offset\": 5116, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/near-1\"}",
-    "127.0.0.1:8081)/dup/near-2 20260908191816 {\"digest\": \"sha256:617b20e234f23a1a07a05580dc87a2706c651bc22e7b415b2713be1b050651c8\", \"filename\": \"d.warc.gz\", \"length\": 1746, \"mime\": \"text/html\", \"offset\": 19230, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/near-2\"}",
-    "127.0.0.1:8081)/encoded/latin1 20260908191813 {\"digest\": \"sha256:c340fc5f6366e8dd8df2fb671fe5888dabda85a0f3ee3a7cfa66d86cbcf2cdb6\", \"filename\": \"d.warc.gz\", \"length\": 607, \"mime\": \"text/html\", \"offset\": 11199, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/latin1\"}",
-    "127.0.0.1:8081)/encoded/mislabelled 20260908191813 {\"digest\": \"sha256:6db3b0aef9123820a579296c3876439a009bbcb9973ce19989f8c309bdaa1c90\", \"filename\": \"d.warc.gz\", \"length\": 611, \"mime\": \"text/html\", \"offset\": 11806, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/mislabelled\"}",
-    "127.0.0.1:8081)/encoded/undeclared 20260908191813 {\"digest\": \"sha256:fa37dd9d0a1dabb7671fcb1214e389cb346999acf8d3d46bd9b1cd6e1b9a8e9c\", \"filename\": \"d.warc.gz\", \"length\": 599, \"mime\": \"text/html\", \"offset\": 12417, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/undeclared\"}",
-    "127.0.0.1:8081)/etag 20260908191812 {\"digest\": \"sha256:8c8cd2491a3af8f382af2bef8575729352d968b8deb56bfa4faaabf67fbbf6ff\", \"filename\": \"d.warc.gz\", \"length\": 558, \"mime\": \"text/html\", \"offset\": 9451, \"status\": 200, \"url\": \"http://127.0.0.1:8081/etag\"}",
-    "127.0.0.1:8081)/gen/1 20260908191814 {\"digest\": \"sha256:bc6a80d5b75ce3c5d7120303311323fce44c76a9ceb35cec88d62b72ec5fbb07\", \"filename\": \"d.warc.gz\", \"length\": 1348, \"mime\": \"text/html\", \"offset\": 13600, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/1\"}",
-    "127.0.0.1:8081)/gen/2 20260908191816 {\"digest\": \"sha256:e883831b480673d574b46aebbd96ba80f36f6f1b3c7297d0ee6d0e7c0e8a6920\", \"filename\": \"d.warc.gz\", \"length\": 1350, \"mime\": \"text/html\", \"offset\": 20976, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/2\"}",
-    "127.0.0.1:8081)/gen/3 20260908191816 {\"digest\": \"sha256:281e535c475ca273aa09e14a825fc8b190f22adbe6a61305cd3072b98e096e73\", \"filename\": \"d.warc.gz\", \"length\": 1347, \"mime\": \"text/html\", \"offset\": 22326, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/3\"}",
-    "127.0.0.1:8081)/hosts 20260908191814 {\"digest\": \"sha256:a2ccb874aa6a75bca741c23b2272f1c0158b7947b8f047a5afe74f9b27ae2104\", \"filename\": \"d.warc.gz\", \"length\": 601, \"mime\": \"text/html\", \"offset\": 14948, \"status\": 200, \"url\": \"http://127.0.0.1:8081/hosts\"}",
-    "127.0.0.1:8081)/js-only 20260908191812 {\"digest\": \"sha256:6e679af79e602bb6124e05c602864b0a5b1cb34f8afaa65f5c8dc08d96dc016e\", \"filename\": \"d.warc.gz\", \"length\": 675, \"mime\": \"text/html\", \"offset\": 8776, \"status\": 200, \"url\": \"http://127.0.0.1:8081/js-only\"}",
-    "127.0.0.1:8081)/private/public-corner 20260908191814 {\"digest\": \"sha256:9e44bca80ca9ede5f733949efac48c5ec07e184f801a0d5c431168206b11b9a3\", \"filename\": \"d.warc.gz\", \"length\": 584, \"mime\": \"text/html\", \"offset\": 13016, \"status\": 200, \"url\": \"http://127.0.0.1:8081/private/public-corner\"}",
-    "127.0.0.1:8081)/slow 20260908191812 {\"digest\": \"sha256:8a56309b206dd7ea1c50606d9ba0a66c175fd559cf99d0fd3ffa34119828b5cc\", \"filename\": \"d.warc.gz\", \"length\": 560, \"mime\": \"text/html\", \"offset\": 8216, \"status\": 200, \"url\": \"http://127.0.0.1:8081/slow\"}",
-    "127.0.0.1:8081)/variants 20260908191810 {\"digest\": \"sha256:9d734459066587337494f4fed2219ed21b1b0e7c4e7fbdee8b1415535fa441fe\", \"filename\": \"d.warc.gz\", \"length\": 732, \"mime\": \"text/html\", \"offset\": 3028, \"status\": 200, \"url\": \"http://127.0.0.1:8081/variants\"}",
-    "127.0.0.1:8081)/volatile 20260908191812 {\"digest\": \"sha256:882d311f9245b6affd508d85ba0c469ef420f10474154a0565b4543beb6c2cc1\", \"filename\": \"d.warc.gz\", \"length\": 570, \"mime\": \"text/html\", \"offset\": 10009, \"status\": 200, \"url\": \"http://127.0.0.1:8081/volatile\"}"
+    "127.0.0.1:8081)/ 20260908194914 {\"digest\": \"sha256:8e3102dcabde7b78c4e29e9af3bb1eb8efc01c3986b82958743f372467b60f97\", \"filename\": \"d.warc.gz\", \"length\": 809, \"mime\": \"text/html\", \"offset\": 311, \"status\": 200, \"url\": \"http://127.0.0.1:8081/\"}",
+    "127.0.0.1:8081)/a 20260908194914 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 708, \"mime\": \"text/html\", \"offset\": 1120, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}",
+    "127.0.0.1:8081)/a 20260908194915 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 708, \"mime\": \"text/html\", \"offset\": 7511, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}",
+    "127.0.0.1:8081)/a 20260908194920 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 711, \"mime\": \"text/html\", \"offset\": 18531, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a\"}",
+    "127.0.0.1:8081)/a?a=1&b=2 20260908194920 {\"digest\": \"sha256:f422b2d0d1d5b5e9b0fb778fcc3ed834e6d3b856635517da9146b05e9ca9ceac\", \"filename\": \"d.warc.gz\", \"length\": 719, \"mime\": \"text/html\", \"offset\": 17812, \"status\": 200, \"url\": \"http://127.0.0.1:8081/a?a=1&b=2\"}",
+    "127.0.0.1:8081)/b 20260908194914 {\"digest\": \"sha256:8396a52adc96627e0724be8b9e3698fdfb9cefd77dafc391852f3a43567672f1\", \"filename\": \"d.warc.gz\", \"length\": 577, \"mime\": \"text/html\", \"offset\": 1828, \"status\": 200, \"url\": \"http://127.0.0.1:8081/b\"}",
+    "127.0.0.1:8081)/c 20260908194919 {\"digest\": \"sha256:91c87cc308bb6680844578f389ae5080d6231baa6b9b048d477a476dc5e7489d\", \"filename\": \"d.warc.gz\", \"length\": 573, \"mime\": \"text/html\", \"offset\": 15558, \"status\": 200, \"url\": \"http://127.0.0.1:8081/c\"}",
+    "127.0.0.1:8081)/compressed 20260908194917 {\"digest\": \"sha256:8af0ef851d90a7d1aabc983bd7c95ba8a4346611c696af0a9775c7e88dcddd7c\", \"filename\": \"d.warc.gz\", \"length\": 618, \"mime\": \"text/html\", \"offset\": 10587, \"status\": 200, \"url\": \"http://127.0.0.1:8081/compressed\"}",
+    "127.0.0.1:8081)/docs/ 20260908194914 {\"digest\": \"sha256:29cdbb3a407f96e221870c0ca3ef5e1f70ad08340542a8fe4ef4a74a154c9167\", \"filename\": \"d.warc.gz\", \"length\": 619, \"mime\": \"text/html\", \"offset\": 2405, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/\"}",
+    "127.0.0.1:8081)/docs/one 20260908194919 {\"digest\": \"sha256:441211b1135f8280505b524c1668a42a0f80e4e8f12502af2d6b2d34f301015e\", \"filename\": \"d.warc.gz\", \"length\": 559, \"mime\": \"text/html\", \"offset\": 16131, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/one\"}",
+    "127.0.0.1:8081)/docs/sub/three 20260908194919 {\"digest\": \"sha256:bb69f9e44c610c3e7d5eefd8f3e5cb3eda4267131ad59c1eabb1aa8334815e0c\", \"filename\": \"d.warc.gz\", \"length\": 559, \"mime\": \"text/html\", \"offset\": 17253, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/sub/three\"}",
+    "127.0.0.1:8081)/docs/two 20260908194919 {\"digest\": \"sha256:bdc119e5b4453e141d8ad15c2d63694e5d2db2e07a0bb372cc15bc158867230b\", \"filename\": \"d.warc.gz\", \"length\": 563, \"mime\": \"text/html\", \"offset\": 16690, \"status\": 200, \"url\": \"http://127.0.0.1:8081/docs/two\"}",
+    "127.0.0.1:8081)/dup/canonical-source 20260908194915 {\"digest\": \"sha256:424390dc5f7c74cf564b521ec3b7261e00df0baa700a4cbfbbf9f538b8ed0c89\", \"filename\": \"d.warc.gz\", \"length\": 616, \"mime\": \"text/html\", \"offset\": 6895, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/canonical-source\"}",
+    "127.0.0.1:8081)/dup/exact-1 20260908194914 {\"digest\": \"sha256:8d3ade3ecc2863d2d3fa92bc52d723bd7fd436313bdb8a78bcb60c95522be198\", \"filename\": \"d.warc.gz\", \"length\": 679, \"mime\": \"text/html\", \"offset\": 3756, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/exact-1\"}",
+    "127.0.0.1:8081)/dup/exact-2 20260908194915 {\"digest\": \"sha256:8d3ade3ecc2863d2d3fa92bc52d723bd7fd436313bdb8a78bcb60c95522be198\", \"filename\": \"d.warc.gz\", \"length\": 682, \"mime\": \"text/html\", \"offset\": 4435, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/exact-2\"}",
+    "127.0.0.1:8081)/dup/near-1 20260908194915 {\"digest\": \"sha256:9b5920352780f762c84a41bd9de463ea4b5ef6176d7c37b13acc4395e2143b9c\", \"filename\": \"d.warc.gz\", \"length\": 1778, \"mime\": \"text/html\", \"offset\": 5117, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/near-1\"}",
+    "127.0.0.1:8081)/dup/near-2 20260908194920 {\"digest\": \"sha256:617b20e234f23a1a07a05580dc87a2706c651bc22e7b415b2713be1b050651c8\", \"filename\": \"d.warc.gz\", \"length\": 1747, \"mime\": \"text/html\", \"offset\": 19242, \"status\": 200, \"url\": \"http://127.0.0.1:8081/dup/near-2\"}",
+    "127.0.0.1:8081)/encoded/latin1 20260908194917 {\"digest\": \"sha256:c340fc5f6366e8dd8df2fb671fe5888dabda85a0f3ee3a7cfa66d86cbcf2cdb6\", \"filename\": \"d.warc.gz\", \"length\": 607, \"mime\": \"text/html\", \"offset\": 11205, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/latin1\"}",
+    "127.0.0.1:8081)/encoded/mislabelled 20260908194917 {\"digest\": \"sha256:6db3b0aef9123820a579296c3876439a009bbcb9973ce19989f8c309bdaa1c90\", \"filename\": \"d.warc.gz\", \"length\": 614, \"mime\": \"text/html\", \"offset\": 11812, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/mislabelled\"}",
+    "127.0.0.1:8081)/encoded/undeclared 20260908194918 {\"digest\": \"sha256:fa37dd9d0a1dabb7671fcb1214e389cb346999acf8d3d46bd9b1cd6e1b9a8e9c\", \"filename\": \"d.warc.gz\", \"length\": 598, \"mime\": \"text/html\", \"offset\": 12426, \"status\": 200, \"url\": \"http://127.0.0.1:8081/encoded/undeclared\"}",
+    "127.0.0.1:8081)/etag 20260908194917 {\"digest\": \"sha256:8c8cd2491a3af8f382af2bef8575729352d968b8deb56bfa4faaabf67fbbf6ff\", \"filename\": \"d.warc.gz\", \"length\": 559, \"mime\": \"text/html\", \"offset\": 9457, \"status\": 200, \"url\": \"http://127.0.0.1:8081/etag\"}",
+    "127.0.0.1:8081)/gen/1 20260908194918 {\"digest\": \"sha256:bc6a80d5b75ce3c5d7120303311323fce44c76a9ceb35cec88d62b72ec5fbb07\", \"filename\": \"d.warc.gz\", \"length\": 1347, \"mime\": \"text/html\", \"offset\": 13610, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/1\"}",
+    "127.0.0.1:8081)/gen/2 20260908194920 {\"digest\": \"sha256:e883831b480673d574b46aebbd96ba80f36f6f1b3c7297d0ee6d0e7c0e8a6920\", \"filename\": \"d.warc.gz\", \"length\": 1348, \"mime\": \"text/html\", \"offset\": 20989, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/2\"}",
+    "127.0.0.1:8081)/gen/3 20260908194920 {\"digest\": \"sha256:281e535c475ca273aa09e14a825fc8b190f22adbe6a61305cd3072b98e096e73\", \"filename\": \"d.warc.gz\", \"length\": 1350, \"mime\": \"text/html\", \"offset\": 22337, \"status\": 200, \"url\": \"http://127.0.0.1:8081/gen/3\"}",
+    "127.0.0.1:8081)/hosts 20260908194919 {\"digest\": \"sha256:a2ccb874aa6a75bca741c23b2272f1c0158b7947b8f047a5afe74f9b27ae2104\", \"filename\": \"d.warc.gz\", \"length\": 601, \"mime\": \"text/html\", \"offset\": 14957, \"status\": 200, \"url\": \"http://127.0.0.1:8081/hosts\"}",
+    "127.0.0.1:8081)/js-only 20260908194916 {\"digest\": \"sha256:6e679af79e602bb6124e05c602864b0a5b1cb34f8afaa65f5c8dc08d96dc016e\", \"filename\": \"d.warc.gz\", \"length\": 678, \"mime\": \"text/html\", \"offset\": 8779, \"status\": 200, \"url\": \"http://127.0.0.1:8081/js-only\"}",
+    "127.0.0.1:8081)/private/public-corner 20260908194918 {\"digest\": \"sha256:9e44bca80ca9ede5f733949efac48c5ec07e184f801a0d5c431168206b11b9a3\", \"filename\": \"d.warc.gz\", \"length\": 586, \"mime\": \"text/html\", \"offset\": 13024, \"status\": 200, \"url\": \"http://127.0.0.1:8081/private/public-corner\"}",
+    "127.0.0.1:8081)/slow 20260908194916 {\"digest\": \"sha256:8a56309b206dd7ea1c50606d9ba0a66c175fd559cf99d0fd3ffa34119828b5cc\", \"filename\": \"d.warc.gz\", \"length\": 560, \"mime\": \"text/html\", \"offset\": 8219, \"status\": 200, \"url\": \"http://127.0.0.1:8081/slow\"}",
+    "127.0.0.1:8081)/variants 20260908194914 {\"digest\": \"sha256:9d734459066587337494f4fed2219ed21b1b0e7c4e7fbdee8b1415535fa441fe\", \"filename\": \"d.warc.gz\", \"length\": 732, \"mime\": \"text/html\", \"offset\": 3024, \"status\": 200, \"url\": \"http://127.0.0.1:8081/variants\"}",
+    "127.0.0.1:8081)/volatile 20260908194917 {\"digest\": \"sha256:882d311f9245b6affd508d85ba0c469ef420f10474154a0565b4543beb6c2cc1\", \"filename\": \"d.warc.gz\", \"length\": 571, \"mime\": \"text/html\", \"offset\": 10016, \"status\": 200, \"url\": \"http://127.0.0.1:8081/volatile\"}"
    ],
    "replayed_links": 74,
-   "replay_bytes_read": 23366,
-   "archive_bytes": 23673
+   "replay_bytes_read": 23382,
+   "archive_bytes": 23687
   }
  },
  "binary_search": {
@@ -683,7 +683,7 @@
      "words": 269,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.333,
+     "elapsed": 0.262,
      "error": null
     },
     {
@@ -696,7 +696,7 @@
      "words": 4,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.27,
+     "elapsed": 0.28,
      "error": null
     },
     {
@@ -709,7 +709,7 @@
      "words": 619,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.799,
+     "elapsed": 0.77,
      "error": null
     },
     {
@@ -722,7 +722,7 @@
      "words": 50,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.29,
+     "elapsed": 0.262,
      "error": null
     },
     {
@@ -735,7 +735,7 @@
      "words": 50,
      "verdict": "near_duplicate",
      "duplicate_of": "https://quotes.toscrape.com/tag/change/page/1/",
-     "elapsed": 0.269,
+     "elapsed": 0.26,
      "error": null
     },
     {
@@ -748,7 +748,7 @@
      "words": 82,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.267,
+     "elapsed": 0.262,
      "error": null
     },
     {
@@ -761,7 +761,7 @@
      "words": 50,
      "verdict": "near_duplicate",
      "duplicate_of": "https://quotes.toscrape.com/tag/change/page/1/",
-     "elapsed": 0.266,
+     "elapsed": 0.261,
      "error": null
     },
     {
@@ -774,7 +774,7 @@
      "words": 648,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.556,
+     "elapsed": 0.517,
      "error": null
     },
     {
@@ -787,7 +787,7 @@
      "words": 43,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.27,
+     "elapsed": 0.259,
      "error": null
     },
     {
@@ -800,7 +800,7 @@
      "words": 43,
      "verdict": "near_duplicate",
      "duplicate_of": "https://quotes.toscrape.com/tag/abilities/page/1/",
-     "elapsed": 0.267,
+     "elapsed": 0.26,
      "error": null
     },
     {
@@ -813,7 +813,7 @@
      "words": 481,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.607,
+     "elapsed": 0.516,
      "error": null
     },
     {
@@ -826,13 +826,13 @@
      "words": 495,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.524,
+     "elapsed": 0.514,
      "error": null
     }
    ],
    "count": 12,
    "errors": 0,
-   "duration": 12.2,
+   "duration": 12.1,
    "dedup": {
     "new": 9,
     "near_duplicate": 3
@@ -854,7 +854,7 @@
      "words": 19,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.015,
+     "elapsed": 0.019,
      "error": null
     }
    ],
@@ -881,7 +881,7 @@
      "words": 3160,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.333,
+     "elapsed": 0.332,
      "error": null
     },
     {
@@ -894,7 +894,7 @@
      "words": 3277,
      "verdict": "near_duplicate",
      "duplicate_of": "https://www.rfc-editor.org/rfc/rfc9309.html",
-     "elapsed": 0.066,
+     "elapsed": 0.065,
      "error": null
     },
     {
@@ -907,7 +907,7 @@
      "words": 3277,
      "verdict": "already_seen",
      "duplicate_of": "https://www.rfc-editor.org/info/rfc9309/",
-     "elapsed": 0.063,
+     "elapsed": 0.059,
      "error": null
     },
     {
@@ -920,7 +920,7 @@
      "words": 14380,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.071,
+     "elapsed": 0.081,
      "error": null
     },
     {
@@ -933,7 +933,7 @@
      "words": 681,
      "verdict": "new",
      "duplicate_of": null,
-     "elapsed": 0.052,
+     "elapsed": 0.058,
      "error": null
     }
    ],
@@ -972,7 +972,7 @@
    "label": "the local corpus",
    "urls": 15,
    "read_wall": 0.02,
-   "read_p50": 5.9,
+   "read_p50": 5.8,
    "read_ok": 15,
    "crawl_wall": 3.63,
    "crawl_pages": 14,
@@ -981,12 +981,12 @@
   {
    "label": "real sites",
    "urls": 8,
-   "read_wall": 1.8,
-   "read_p50": 1066.1,
+   "read_wall": 2.0,
+   "read_p50": 1144.2,
    "read_ok": 8,
-   "crawl_wall": 8.08,
+   "crawl_wall": 8.03,
    "crawl_pages": 8,
-   "waiting": 33.7
+   "waiting": 35.2
   }
  ],
  "search": {
@@ -996,43 +996,43 @@
     "build": 0.04,
     "terms": 15780,
     "index_us": 17,
-    "scan_us": 230,
-    "speedup": 14
+    "scan_us": 218,
+    "speedup": 13
    },
    {
     "documents": 10000,
-    "build": 0.56,
+    "build": 0.57,
     "terms": 30128,
-    "index_us": 109,
-    "scan_us": 3227,
-    "speedup": 30
+    "index_us": 108,
+    "scan_us": 2836,
+    "speedup": 26
    },
    {
     "documents": 50000,
-    "build": 3.66,
+    "build": 3.68,
     "terms": 70130,
-    "index_us": 561,
-    "scan_us": 30688,
-    "speedup": 55
+    "index_us": 552,
+    "scan_us": 28698,
+    "speedup": 52
    }
   ],
   "selectivity": [
    {
     "query": "w19999",
     "note": "a term in a handful of documents",
-    "us": 13,
+    "us": 14,
     "postings": 36
    },
    {
     "query": "duplicate detection simhash",
     "note": "three ordinary words",
-    "us": 565,
+    "us": 555,
     "postings": 2289
    },
    {
     "query": "w0",
     "note": "a term in almost every document",
-    "us": 33761,
+    "us": 33425,
     "postings": 49990
    }
   ],
@@ -1046,19 +1046,19 @@
    {
     "query": "crawler simhash",
     "note": "either word, anywhere",
-    "us": 163,
+    "us": 166,
     "docs": 474
    },
    {
     "query": "\"duplicate detection\"",
     "note": "adjacent, in order",
-    "us": 138,
+    "us": 142,
     "docs": 153
    },
    {
     "query": "\"detection duplicate\"",
     "note": "the same words, reversed",
-    "us": 46,
+    "us": 51,
     "docs": 0
    }
   ]
@@ -2251,6 +2251,143 @@
      "never",
      "existed"
     ]
+   }
+  ]
+ },
+ "hybrid": {
+  "documents": 30,
+  "terms": 380,
+  "grams": 1038,
+  "morphology": [
+   {
+    "indexed": "redirects",
+    "query": "redirect",
+    "base": 4,
+    "bm25": 0,
+    "ngram": 10,
+    "fused": 10,
+    "verdict": "rescued"
+   },
+   {
+    "indexed": "duplicate",
+    "query": "duplicates",
+    "base": 7,
+    "bm25": 0,
+    "ngram": 10,
+    "fused": 10,
+    "verdict": "rescued"
+   },
+   {
+    "indexed": "normalisation",
+    "query": "normalise",
+    "base": 0,
+    "bm25": 0,
+    "ngram": 10,
+    "fused": 10,
+    "verdict": "absent"
+   },
+   {
+    "indexed": "politeness",
+    "query": "polite",
+    "base": 7,
+    "bm25": 2,
+    "ngram": 9,
+    "fused": 9,
+    "verdict": "no change"
+   },
+   {
+    "indexed": "compressed",
+    "query": "compression",
+    "base": 1,
+    "bm25": 0,
+    "ngram": 10,
+    "fused": 10,
+    "verdict": "rescued"
+   },
+   {
+    "indexed": "generated",
+    "query": "generator",
+    "base": 3,
+    "bm25": 0,
+    "ngram": 10,
+    "fused": 10,
+    "verdict": "rescued"
+   }
+  ],
+  "spurious": [
+   {
+    "query": "spider",
+    "hits": [
+     {
+      "title": "Page B",
+      "score": 0.23
+     },
+     {
+      "title": "Mislabelled caf\u00e9",
+      "score": 0.14
+     },
+     {
+      "title": "Client rendered",
+      "score": 0.11
+     }
+    ]
+   },
+   {
+    "query": "crawlspace",
+    "hits": [
+     {
+      "title": "Duplicate",
+      "score": 0.18
+     },
+     {
+      "title": "Duplicate",
+      "score": 0.18
+     },
+     {
+      "title": "Page B",
+      "score": 0.18
+     }
+    ]
+   },
+   {
+    "query": "rediscover",
+    "hits": [
+     {
+      "title": "Page A",
+      "score": 0.17
+     },
+     {
+      "title": "Page A",
+      "score": 0.17
+     },
+     {
+      "title": "Page A",
+      "score": 0.17
+     }
+    ]
+   }
+  ],
+  "rescued": 4,
+  "eligible": 5,
+  "preserved": 3,
+  "checked": 3,
+  "cost": {
+   "bm25": 6,
+   "ngram": 29,
+   "fused": 44
+  },
+  "examples": [
+   {
+    "pair": "redirect / redirects",
+    "cosine": 0.82
+   },
+   {
+    "pair": "redirect / crawler",
+    "cosine": 0.0
+   },
+   {
+    "pair": "crawler / spider",
+    "cosine": 0.15
    }
   ]
  }

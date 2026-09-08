@@ -16,6 +16,13 @@ verified against a synthetic corpus. See README.md for the ladder.
    The concept → code map is the point: every concept names the file and
    function it is implemented by. `logs/README.txt` has the full format.
 
+5. **The public page** — `uv run python scripts/dashboard_data.py >
+   docs/dashboard.json`, then update `docs/index.html`: the ladder count in the
+   standfirst, the footer link, and a section for the stage if it added
+   something a visitor can see or try. The README is easy to remember and the
+   page is the thing people actually click; it fell five stages behind once
+   already, which is how this item got here.
+
 Then one commit and an annotated `stage-NN` tag. Commits are authored as the
 repo owner with no trailers.
 
@@ -35,3 +42,12 @@ repo owner with no trailers.
   suite that cannot fail.
 - **Name a metric for what it measures.** A number that reads as nonsense will
   be believed by whoever reads it next.
+- **Measure before claiming, and state the corpus.** Twice now a docstring or
+  a summary line has asserted something the benchmark below it disproved —
+  "positions triple an index" (1.6x), "cost tracks term rarity" (written above
+  a table showing it did not). A synthetic corpus can be built to prove
+  anything, so every measurement says what it ran on.
+- **A benchmark must be able to lose.** Check the flattering direction and the
+  unflattering one: recall rescued *and* precision preserved, best case *and*
+  worst case. The hybrid benchmark scored noise as recall until it was made to
+  check whether the word was in the corpus at all.
