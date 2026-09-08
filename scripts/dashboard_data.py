@@ -20,9 +20,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from minicrawl.cdx import CdxIndex, surt, write_cdxj          # noqa: E402
+from minicrawl.index import Index                             # noqa: E402
+from minicrawl.reader import read_many                        # noqa: E402
+from minicrawl.tokenize import tokens as tokenise             # noqa: E402
 from minicrawl.charset import decode                          # noqa: E402
 from minicrawl.crawler import CrawlConfig, crawl              # noqa: E402
 from minicrawl.dedup import DuplicateIndex                    # noqa: E402
+from minicrawl.export import JsonlExporter                    # noqa: E402
 from minicrawl.replay import ArchiveReplay                    # noqa: E402
 from minicrawl.traps import TrapGuard                         # noqa: E402
 from minicrawl.warc import WarcWriter                         # noqa: E402
@@ -45,9 +49,10 @@ async def corpus_crawl(tmp: Path) -> dict:
     """The headline run: the full corpus, archived and indexed."""
     warc_path, cdx_path = tmp / "d.warc.gz", tmp / "d.cdxj"
     writer = WarcWriter(warc_path)
+    exporter = JsonlExporter(tmp / "pages.jsonl")
     config = CrawlConfig(seeds=[BASE + "/"], max_pages=80, max_depth=5,
                          workers=4, traps=TrapGuard(), dedup=DuplicateIndex(),
-                         warc=writer, on_page=None)
+                         warc=writer, exporter=exporter, on_page=None)
     result = await crawl(config)
     lines = write_cdxj(writer.index, cdx_path)
 
@@ -172,6 +177,171 @@ def robots_delay(host: str) -> dict | None:
         return None
 
 
+# --- stage 16: reader mode -------------------------------------------------
+
+async def reader_numbers(urls: list[str], label: str, seed: str,
+                         delay: float) -> dict:
+    """Read N URLs, then crawl the same number, and time both."""
+    started = time.perf_counter()
+    results = await read_many(urls, concurrency=8, respect_robots=True)
+    read_wall = time.perf_counter() - started
+
+    started = time.perf_counter()
+    crawled = await crawl(CrawlConfig(seeds=[seed], max_pages=len(urls),
+                                      max_depth=3, workers=8,
+                                      default_delay=delay, on_page=None))
+    crawl_wall = time.perf_counter() - started
+
+    latencies = sorted(r.elapsed for r in results)
+    return {"label": label, "urls": len(urls),
+            "read_wall": round(read_wall, 2),
+            "read_p50": round(latencies[len(latencies) // 2] * 1000, 1),
+            "read_ok": sum(1 for r in results if r.ok),
+            "crawl_wall": round(crawl_wall, 2),
+            "crawl_pages": len(crawled.pages),
+            "waiting": round(crawled.worker_seconds_waiting, 1)}
+
+
+# --- stages 17 and 18: the index -------------------------------------------
+
+sys.path.insert(0, str(ROOT / "scripts"))
+from search_bench import ForwardScan, make_corpus              # noqa: E402
+
+
+
+def synthetic(n: int) -> list[str]:
+    """The benchmark's own corpus builder — Zipfian, and the same text the
+    repo's `scripts/search_bench.py` measures on, so the page cannot quote a
+    different number from a different corpus."""
+    return make_corpus(n)
+
+
+def forward_scan_seconds(corpus: list[str], query: str, repeats: int = 3) -> float:
+    """Time the honest baseline: BM25 with no inverted index at all.
+
+    Imported from the benchmark rather than reimplemented. The first version
+    here computed IDF via `index.idf`, which reads the inverted index's
+    document frequencies — so the "scan" was quietly using the very structure
+    it was supposed to be the alternative to, and reported an 8x speedup where
+    the real figure is 61x. A baseline that borrows from the thing it measures
+    is not a baseline.
+    """
+    scan = ForwardScan()
+    for text in corpus:
+        scan.add(text)
+    samples = []
+    for _ in range(repeats):
+        started = time.perf_counter()
+        scan.search(query)
+        samples.append(time.perf_counter() - started)
+    return sorted(samples)[len(samples) // 2]
+
+
+def timed_query(index: Index, query: str, repeats: int = 30) -> float:
+    samples = []
+    for _ in range(repeats):
+        started = time.perf_counter()
+        index.search(query)
+        samples.append(time.perf_counter() - started)
+    return sorted(samples)[len(samples) // 2]
+
+
+def search_numbers(sizes=(1_000, 10_000, 50_000)) -> dict:
+    rows, big = [], None
+    for n in sizes:
+        corpus = synthetic(n)
+        index = Index()
+        started = time.perf_counter()
+        for i, text in enumerate(corpus):
+            index.add(text, url=f"http://example.test/{i}", title=f"Document {i}")
+        build = time.perf_counter() - started
+
+        query = "duplicate detection simhash"
+        fast = timed_query(index, query)
+        slow = forward_scan_seconds(corpus, query)
+        rows.append({"documents": n, "build": round(build, 2),
+                     "terms": len(index.postings),
+                     "index_us": round(fast * 1e6),
+                     "scan_us": round(slow * 1e6),
+                     "speedup": round(slow / fast)})
+        big = index
+
+    # Selectivity, on the largest index: the caveat that belongs next to the
+    # headline rather than underneath it.
+    selectivity = []
+    for query, note in [("w19999", "a term in a handful of documents"),
+                        ("duplicate detection simhash", "three ordinary words"),
+                        ("w0", "a term in almost every document")]:
+        touched = sum(big.doc_frequency(t) for t in set(tokenise(query)))
+        selectivity.append({"query": query, "note": note,
+                            "us": round(timed_query(big, query) * 1e6),
+                            "postings": touched})
+
+    # What positions cost, measured on a smaller index for speed.
+    medium = Index()
+    for i, text in enumerate(synthetic(10_000)):
+        medium.add(text, url=f"http://example.test/{i}", title=f"Document {i}")
+    stats = medium.stats()
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        with_positions = Path(tmp) / "p.json"
+        medium.save(with_positions)
+        counts = Path(tmp) / "c.json"
+        counts.write_text(json.dumps({
+            "version": 1, "k1": medium.k1, "b": medium.b,
+            "docs": medium.docs, "lengths": medium.lengths,
+            "postings": {t: [(d, len(w)) for d, w in ps.items()]
+                         for t, ps in medium.postings.items()}}), encoding="utf-8")
+        cost = {"with_positions": with_positions.stat().st_size,
+                "counts_only": counts.stat().st_size,
+                "per_posting": round(stats["positions"] / stats["postings"], 2)}
+    cost["ratio"] = round(cost["with_positions"] / cost["counts_only"], 2)
+
+    phrase_rows = []
+    for query, note in [("crawler simhash", "either word, anywhere"),
+                        ('"duplicate detection"', "adjacent, in order"),
+                        ('"detection duplicate"', "the same words, reversed")]:
+        phrase_rows.append({"query": query, "note": note,
+                            "us": round(timed_query(medium, query) * 1e6),
+                            "docs": len(medium.search(query, limit=100_000))})
+
+    return {"rows": rows, "selectivity": selectivity, "positions": cost,
+            "phrases": phrase_rows}
+
+
+GAP = "\u0000"
+
+
+def phrase_playground(jsonl: Path) -> dict:
+    """Tokenised documents, so the page can run the real intersection.
+
+    Tokenisation happens HERE, in Python, with the same function the index
+    uses — the page only performs the positional intersection. Reimplementing
+    the tokeniser in JavaScript would mean the demo could disagree with the
+    index it claims to demonstrate.
+    """
+    docs = []
+    with jsonl.open(encoding="utf-8") as handle:
+        for line in handle:
+            record = json.loads(line)
+            text = record.get("text")
+            if not text:
+                continue
+            # A sentinel between the fields, for the same reason the index
+            # inserts FIELD_GAP: without it a phrase could span the title and
+            # the body, and the demo would match something the real index
+            # does not. GAP is not a term any query can produce, so no phrase
+            # can cross it.
+            terms = (tokenise(record.get("title", "")) + [GAP]
+                     + tokenise(text))[:260]
+            if len(terms) < 5:
+                continue
+            docs.append({"url": record.get("final_url", ""),
+                         "title": record.get("title", ""),
+                         "terms": terms})
+    return {"docs": docs[:26]}
+
+
 async def main() -> int:
     import tempfile
     tmp = Path(tempfile.mkdtemp())
@@ -199,6 +369,29 @@ async def main() -> int:
             "real_sites": [],
             "robots_seen": [],
         }
+        sys.stderr.write("reader benchmark ...\n")
+        corpus_urls = [f"{BASE}{p}" for p in
+                       ("/", "/a", "/b", "/c", "/docs/", "/docs/one",
+                        "/docs/two", "/docs/sub/three", "/etag", "/variants",
+                        "/dup/near-1", "/encoded/latin1", "/compressed",
+                        "/hosts", "/js-only")]
+        data["reader"] = [
+            await reader_numbers(corpus_urls, "the local corpus",
+                                 BASE + "/", 0.2),
+            await reader_numbers(
+                ["https://example.com/",
+                 "https://www.rfc-editor.org/rfc/rfc9309.html",
+                 "https://quotes.toscrape.com/",
+                 "https://books.toscrape.com/",
+                 "https://quotes.toscrape.com/tag/inspirational/",
+                 "https://www.iana.org/help/example-domains",
+                 "https://httpbin.org/html",
+                 "https://quotes.toscrape.com/author/Albert-Einstein/"],
+                "real sites", "https://quotes.toscrape.com/", 1.0),
+        ]
+        sys.stderr.write("search benchmark ...\n")
+        data["search"] = search_numbers()
+        data["phrase_demo"] = phrase_playground(tmp / "pages.jsonl")
         for seed, pages, delay in [("https://quotes.toscrape.com/", 12, 1.0),
                                    ("https://example.com/", 5, 1.0),
                                    ("https://www.rfc-editor.org/rfc/rfc9309.html", 5, 1.5)]:
