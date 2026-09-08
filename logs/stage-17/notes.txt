@@ -98,9 +98,34 @@ MEASURED
  49,990 postings     24,591us   <- almost exactly the cost of a scan
 
 
+5. CROSS-VALIDATED AGAINST AN IMPLEMENTATION I DID NOT WRITE (added later).
+   The brute-force scan the index was checked against lives in this repo and
+   came from the same reading of the formula, so agreement between them proves
+   consistency, not correctness. rank_bm25 is independent.
+
+   Result: scores identical to 1.8e-15 over 13,584 scored documents; 300 of 300
+   multi-term rankings identical; 400 of 400 SINGLE-TERM rankings identical
+   with our code unmodified — the decisive one, because IDF cannot reorder a
+   single-term query, which isolates saturation and length normalisation.
+
+   Two differences, both parameters:
+     k1   rank_bm25 defaults to 1.5; we use Lucene's 1.2.
+     idf  rank_bm25 uses the classic formula with a floor for negative values;
+          we use Lucene's log(1 + ...), which cannot go negative.
+
+   MY OWN ERRORS ALONG THE WAY, BOTH THE SAME SHAPE AS EARLIER STAGES:
+     - First comparison ran on an 18-word vocabulary over 200 documents, where
+       nearly every term appears in half the corpus. It reported "400 of 400
+       explained" — a condition that could not have failed. Stage 17's own
+       benchmark mistake, repeated while validating stage 17.
+     - Saw a 0.46 score gap and wrote "the scoring functions genuinely differ"
+       before decomposing it. It was rank_bm25's default k1.
+
+
 HOW TO VERIFY
 -------------
   uv run pytest tests/test_stage17_index.py -q      # 27 tests
+  uv run pytest tests/test_bm25_reference.py -q    # 9 cross-validation tests
   uv run python scripts/search_bench.py
 
   uv run python -m testsite.server --ports 8081 &

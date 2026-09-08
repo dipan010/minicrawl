@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Nineteen stages, nineteen tags, 370 tests. Each stage is a git tag, a rationale note in
+Nineteen stages, nineteen tags, 379 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 
@@ -410,6 +410,21 @@ minicrawl SEED [SEED ...] [options]
 
 The `--no-*` flags exist so each stage's contribution can be switched off and
 measured, which is how most of the numbers in `docs/` were produced.
+
+## Checked against tools this project did not write
+
+Three claims are validated against independent implementations rather than
+against the repo's own code:
+
+| Claim | Checked against |
+|---|---|
+| The WARC is a valid archive | `warcio` |
+| The CDX byte offsets are right | `warcio index`, every record |
+| BM25 scores and ranks correctly | `rank_bm25` — 1.8×10⁻¹⁵ score difference, 300/300 and 400/400 identical rankings |
+
+The last one was a hole for three stages. The index had only ever been compared
+with a brute-force scan in this same repository, written from the same reading
+of the formula — so agreement proved consistency, not correctness.
 
 ## How correctness is decided
 

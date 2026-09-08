@@ -97,6 +97,46 @@ corpus is wrong.** The benchmark now samples a 20,000-word vocabulary by rank,
 and says so in its own docstring, because a synthetic corpus can be built to
 prove anything.
 
+## Checked against an implementation this project did not write
+
+Added after the fact, because it was a real hole. The WARC was validated
+against `warcio` and the CDX offsets against `warcio index`, but the ranking
+function — the heart of three stages — had only ever been checked against a
+brute-force scan **in this same repository, written by the same hand from the
+same reading of the formula**. If that reading were wrong, both would agree and
+both would be wrong.
+
+`rank_bm25` is independent. Holding its two configuration differences constant:
+
+| Check | Result |
+|---|---|
+| Average document length, term frequencies, document lengths | identical |
+| Scores, over 13,584 scored documents | max difference **1.8 × 10⁻¹⁵** |
+| Full rankings, 300 multi-term queries | **300 of 300 identical** |
+| Rankings for 400 single-term queries, ours unmodified | **400 of 400 identical** |
+
+That last row is the one that matters most. For a single term, IDF is one
+constant multiplying every score, so it cannot affect the order — which
+isolates term-frequency saturation and length normalisation, and finds them
+exactly right.
+
+### The two differences are parameters, not formulas
+
+**`k1`.** `rank_bm25` defaults to **1.5**; we use **1.2**, which is Lucene's
+default and therefore what production search actually computes. This one cost
+me an hour: an early comparison showed a 0.46 score gap and I wrote it up as
+"the scoring functions genuinely differ" before decomposing it. It was a
+default parameter.
+
+**The IDF variant.** `rank_bm25` uses the classic formula and then floors
+negative values to `epsilon × average_idf`. We use Lucene's `log(1 + …)`, which
+is never negative and needs no flooring — the deviation already described
+above, now confirmed to be the *only* formula-level difference between us and
+an independent implementation.
+
+`tests/test_bm25_reference.py` pins all of it, including both differences, so
+neither can quietly become a third.
+
 ## The tokeniser is where findability is decided
 
 A term the tokeniser throws away is a term no query can ever match, which makes
