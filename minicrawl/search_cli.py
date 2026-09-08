@@ -11,6 +11,7 @@ import sys
 import time
 from pathlib import Path
 
+from .hybrid import HybridSearcher
 from .index import Index
 
 
@@ -23,12 +24,42 @@ def main(argv=None) -> int:
                          'those words adjacent and in order')
     ap.add_argument("--build", metavar="JSONL",
                     help="build the index from a --export file")
-    ap.add_argument("--index", metavar="PATH", required=True,
+    ap.add_argument("--index", metavar="PATH",
                     help="where the index lives (written by --build, else read)")
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--explain", action="store_true",
                     help="show each term's contribution to the score")
+    ap.add_argument("--hybrid", metavar="JSONL",
+                    help="also match on character n-grams, fusing the two "
+                         "rankings; takes the export to build both from")
     args = ap.parse_args(argv)
+    if not args.index and not args.hybrid:
+        ap.error("--index is required (or use --hybrid with an export)")
+
+    if args.hybrid:
+        # Hybrid builds both retrievers from the export in one pass, so it
+        # does not read --index at all.
+        searcher = HybridSearcher.build(args.hybrid)
+        if not args.query:
+            ap.error("give something to search for")
+        query = " ".join(args.query)
+
+        started = time.perf_counter()
+        hits = searcher.search(query, limit=args.limit)
+        micros = (time.perf_counter() - started) * 1e6
+
+        comparison = searcher.compare(query, limit=args.limit)
+        print(f"\n{len(hits)} results for {query!r} in {micros:.0f}µs "
+              f"over {searcher.index.n_docs:,} documents")
+        print(f"  bm25 found {len(comparison['bm25'])}, "
+              f"n-grams found {len(comparison['ngram'])}, "
+              f"{len(comparison['only_ngram'])} only n-grams reached\n")
+        for rank, hit in enumerate(hits, 1):
+            print(f"{rank:>2}. {hit.title or '(no title)'}")
+            print(f"      {hit.url}")
+            if args.explain:
+                print(f"      {hit.explain()}")
+        return 0 if hits else 1
 
     if args.build:
         index = Index()

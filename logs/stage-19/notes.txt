@@ -1,0 +1,105 @@
+STAGE 19 — HYBRID RETRIEVAL
+===========================
+
+GOAL
+----
+Fix the failure stage 17 named and left: BM25 matches terms, so a query for
+`redirect` cannot find a document that says `Redirects`. Then combine the fix
+with BM25 honestly, and measure what the combination buys AND costs.
+
+
+STEPS TAKEN
+-----------
+1. minicrawl/vectors.py — character trigrams with boundary markers, cosine
+   similarity, and an NgramIndex with its own postings so only candidates are
+   scored.
+2. minicrawl/hybrid.py — Reciprocal Rank Fusion, and a HybridSearcher that
+   builds both retrievers from one stage-15 export in one pass.
+3. --hybrid on minicrawl-search.
+4. scripts/hybrid_bench.py — rescued queries, spurious matches, regression
+   check, and cost.
+5. Corrected the benchmark's rescue accounting (see WHAT BROKE).
+6. 23 tests.
+
+
+CONCEPTS APPLIED
+----------------
+- Character n-grams: morphology without a stemmer, and without a language
+  assumption — a stemmer written for English harms every other language.
+- Boundary markers ^ and $: without them prefixes stop counting.
+- Cosine: proportional counts, not equal ones; direction over magnitude.
+- Candidate generation via gram postings — do not rebuild the forward scan.
+- Retrievers fail in OPPOSITE directions; the useful system asks both.
+- Reciprocal Rank Fusion: ranks are comparable, scores are not.
+- k=60 is deliberately flat, so one retriever's top hit cannot dominate.
+- Recall wins must not be precision losses — check both, always.
+- Naming the limit: n-grams are morphology, NOT semantics. Saying "hybrid
+  semantic search" would sell better than it describes.
+
+
+CONCEPT -> CODE MAP
+-------------------
+trigrams with boundaries      minicrawl/vectors.py :: grams()
+document vectors              minicrawl/vectors.py :: vector()
+cosine, shorter side first    minicrawl/vectors.py :: cosine()
+candidate generation          minicrawl/vectors.py :: NgramIndex.search()
+rank fusion                   minicrawl/hybrid.py :: reciprocal_rank_fusion()
+two retrievers, one id space  minicrawl/hybrid.py :: HybridSearcher.build()
+what each alone would miss    minicrawl/hybrid.py :: HybridSearcher.compare()
+command line                  minicrawl/search_cli.py :: --hybrid
+the measurement               scripts/hybrid_bench.py
+
+
+WHAT BROKE
+----------
+1. THE BENCHMARK COUNTED NOISE AS RECALL.
+   The morphology table paired an indexed word with an unindexed spelling and
+   counted a "rescue" whenever BM25 found nothing and fusion found something.
+   One pair was `normalisation` / `normalise` — and `normalisation` is not in
+   the corpus AT ALL. BM25 correctly returned nothing for both spellings, the
+   n-grams returned near-miss junk, and my table scored that as a win.
+   Headline would have been 5 of 6. It is 4 of 5.
+
+   Fixed by checking the indexed form actually appears before the query counts
+   as eligible. This is the easiest possible way to make a fusion look better
+   than it is, and I wrote it that way first without noticing.
+
+2. NOTHING ELSE — but two things were deliberately resisted:
+   - calling this "semantic" search, which it is not;
+   - reaching for a dense embedding model to fix a MORPHOLOGICAL failure,
+     which would have solved a different problem than the corpus has.
+
+
+MEASURED
+--------
+  redirect / Redirects       cosine 0.83
+  redirect / crawler         cosine 0.00
+  crawler  / spider          cosine 0.15   <- no semantics, and that is the point
+
+  4 of 5 eligible queries rescued by fusion
+  7 of 7 BM25 top-1 results preserved in the fused top 5
+
+  bm25 alone       6us
+  n-grams alone   27us
+  fused           42us      two searches, not a cleverer one
+
+
+HOW TO VERIFY
+-------------
+  uv run pytest tests/test_stage19_hybrid.py -q       # 23 tests
+  uv run python scripts/hybrid_bench.py
+
+  uv run python -m testsite.server --ports 8081 &
+  uv run minicrawl http://127.0.0.1:8081/ --quiet --max-pages 40 \
+      --export pages.jsonl
+  uv run minicrawl-search --hybrid pages.jsonl --explain "redirect"
+  # bm25 found 0, n-grams found 3, 3 only n-grams reached
+
+
+STATE AFTER THIS STAGE
+----------------------
+- A query can match a word form the index never saw.
+- Two retrievers are fused without either score being comparable.
+- Still absent: dense embeddings (dependency weight, stated), a reranker,
+  learned fusion weights (needs judged relevance data this project does not
+  have and would not invent), and stemming — now less necessary.

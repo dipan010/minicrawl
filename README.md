@@ -20,7 +20,7 @@ the stage lands.
 
 ## The ladder — complete
 
-Eighteen stages, eighteen tags, 347 tests. Each stage is a git tag, a rationale note in
+Nineteen stages, nineteen tags, 370 tests. Each stage is a git tag, a rationale note in
 `docs/`, and a working log in `logs/`. Nothing was checked in until it verified
 against the ground-truth manifest.
 
@@ -44,6 +44,7 @@ against the ground-truth manifest.
 | 16 ✅ | `reader.py`, `markdown.py` | Reader mode: one URL in, Markdown out, and why a read beats a crawl |
 | 17 ✅ | `index.py`, `tokenize.py` | The inverted index: BM25, and why search is microseconds |
 | 18 ✅ | `index.py` positions | Phrase queries: adjacency, field gaps, and what positions cost |
+| 19 ✅ | `vectors.py`, `hybrid.py` | Hybrid retrieval: character n-grams, rank fusion, and what it cannot do |
 
 ## Design
 
@@ -209,7 +210,14 @@ uv run minicrawl http://127.0.0.1:8081/ --quiet --export pages.jsonl
 uv run minicrawl-search --build pages.jsonl --index idx.json
 uv run minicrawl-search --index idx.json --explain "robots exclusion"
 uv run minicrawl-search --index idx.json '"the url you asked"'   # exact phrase
+uv run minicrawl-search --hybrid pages.jsonl "redirect"          # BM25 finds 0
 ```
+
+That last one is the point of stage 19: the corpus says *Redirects*, the query
+says *redirect*, and BM25 sees two unrelated terms. Character n-grams match
+across the ending, and Reciprocal Rank Fusion combines the two rankings without
+either score needing to be comparable with the other. It is morphology, not
+meaning — `crawler` and `spider` remain strangers, and a test says so.
 
 Search is fast for one reason: **the crawling already happened.** Query time is
 a lookup in a structure built offline — 509µs over 50,000 documents, against
@@ -321,6 +329,8 @@ minicrawl/            the crawler
   export.py           JSONL of clean text, and a report you can carry away
   reader.py           one URL in, Markdown out — no frontier, no queue
   index.py            inverted index and BM25 — the online half
+  vectors.py          character n-grams — morphology, not meaning
+  hybrid.py           reciprocal rank fusion of two retrievers
   tokenize.py         what becomes findable, and what silently does not
   markdown.py         HTML to Markdown, structure kept, links absolutised
   report.html         the report template — system fonts, no network
